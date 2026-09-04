@@ -29,6 +29,8 @@ dependencies = [
 agent = "agent.main:main"
 # Check your setup with `uv run agent-doctor`.
 agent-doctor = "agent.doctor:main"
+# Run the maths-homework checker bot (long polling, local).
+mathcheck-bot = "agent.mathcheck.bot:main"
 
 [build-system]
 requires = ["hatchling"]

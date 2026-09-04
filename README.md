@@ -73,6 +73,7 @@ This starter is built around a specific way of working — think first, document
 ## Common commands
 
 ```bash
+uv run mathcheck-bot          # run the homework checker (Telegram, polling)
 uv run agent                  # run the example agent
 uv run agent-doctor           # check your setup
 uv run pytest                 # fast tests

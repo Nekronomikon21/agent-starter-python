@@ -23,6 +23,7 @@ once when the review lands.
 | `clarify` | resolve a shaky reading | row → confirmed `student_answer` |
 | `correct` | let the user fix a misread afterwards | label + typed answer or new photo → updated row |
 | `respond` | settled rows → chat messages | rows → message 1, message 2 |
+| `bot` | Telegram wiring only | update → handler → the modules above |
 
 `solve` and `review` are the two independent models, independent by **method**: one re-derives from
 scratch, the other verifies a given derivation.
@@ -107,6 +108,13 @@ A user correction returns any row to `solved` for a fresh `compare`.
 
 The table is the shared work queue both workers read and write, which is what makes cancel-and-skip
 safe.
+
+## Where state lives
+
+One page's rows live in memory for the length of a request. Across messages — the correction button,
+a typed clarify reply — the bot keeps the last page per user in `bot.SESSIONS`, which **does not
+survive a restart**: the button then says the page is gone and asks for it again. The
+`mathcheck_problems` table replaces that when the bot is deployed, where restarts are routine.
 
 ## Services
 

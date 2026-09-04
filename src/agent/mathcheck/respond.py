@@ -89,3 +89,11 @@ def message_2(result: PageResult) -> str | None:
         for row in result.unresolved
     ]
     return "\n\n".join(parts) if parts else None
+
+
+def correction_reply(row: Row) -> str:
+    """After the user tells us what they wrote. Owns the mistake plainly."""
+    answer = _flat(row.problem.student_answer)
+    if row.status == "cleared":
+        return f"With {answer} for {row.label} — that's right, my mistake."
+    return _diagnosis(row)

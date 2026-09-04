@@ -292,3 +292,63 @@ async def test_a_literal_escape_in_an_answer_is_flattened_too(
 
     assert "\\n" not in text, text
     assert "{ x = 6 { y = 5" in text
+
+
+# --- corrections --------------------------------------------------------------
+
+
+async def test_a_correction_that_agrees_clears_the_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    from agent.mathcheck.pipeline import apply_correction
+    from agent.mathcheck.respond import correction_reply
+
+    fakes = Fakes([problem("3b", "c", "1", read_ok=False)], {"3b": "11/12"})
+    fakes.install(monkeypatch)
+    result = await pl.check_page(IMAGE)
+    row = result.rows[0]
+    assert row.status == "awaiting_user"
+
+    await apply_correction(row, "11/12", IMAGE)
+
+    assert row.status == "cleared"
+    assert row.answer_source == "user_confirmed"
+    assert correction_reply(row) == "With 11/12 for 3b — that's right, my mistake."
+    assert fakes.review_started == [], "their word is authoritative; nothing re-checks it"
+
+
+async def test_a_correction_that_still_differs_gets_reviewed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agent.mathcheck.pipeline import apply_correction
+
+    fakes = Fakes([problem("2", "b", "1", read_ok=False)], {"2": "17"})
+    fakes.install(monkeypatch)
+    result = await pl.check_page(IMAGE)
+    row = result.rows[0]
+
+    await apply_correction(row, "9", IMAGE)
+
+    assert row.status == "diagnosed"
+    assert fakes.review_finished == ["2"]
+
+
+async def test_correcting_a_drawing_solves_it_first(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A drawn row was never solved, so a correction has nothing to compare against."""
+    from agent.mathcheck.pipeline import apply_correction
+
+    drawn = Problem(
+        label="4",
+        statement="y = x + 2",
+        student_answer="a graph",
+        answer_kind="drawing",
+        read_ok=True,
+    )
+    fakes = Fakes([drawn], {"4": "17"})
+    fakes.install(monkeypatch)
+    result = await pl.check_page(IMAGE)
+    row = result.rows[0]
+    assert row.correct_answer is None
+
+    await apply_correction(row, "17", IMAGE)
+
+    assert row.correct_answer == "17"
+    assert row.status == "cleared"

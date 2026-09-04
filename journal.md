@@ -614,3 +614,31 @@ Also seen this run: №5 came back `awaiting_user` rather than diagnosed, becaus
 unsure whether the exponent was `x^x` or `x^3` and flagged it. That's the gate working — it asked
 instead of accusing — and it's the first time `read_ok = false` has fired on a statement rather than
 an answer.
+
+## 2026-09-04 18:26 — Telegram layer: wiring only, and one honest shortcut
+`bot.py` is handlers and nothing else — every decision is in `pipeline.py`, every sentence in
+`respond.py`. Photo → ack within a second → message 1 on the fast pass → message 2 with the
+correction button. `/start`, an allowlist that declines before any paid call, the unsupported-type
+reply, and `add_error_handler` so a stopped updater is loud instead of silently dead.
+
+The timeouts are copied deliberately, not by habit: 20s connect / 30s read / 60s media. PTB's 5s
+default is the bug that cost an evening on the inspiration bot, and its signature — text works,
+photos never do — would have looked like a vision problem here too.
+
+**`apply_correction` went into `pipeline.py`, not the bot.** It's a decision ("the user says they
+wrote 11/12; is the row still wrong?"), so it belongs where decisions are and where it can be tested
+offline. Three tests: a correction that agrees clears the row *without* re-running review (their word
+is authoritative — nothing re-checks it), one that still differs escalates, and correcting a drawn
+row solves it first, since a drawing was never solved and has nothing to compare against. That last
+case only exists because of this morning's `answer_kind` fix; it would have been an AttributeError in
+production.
+
+**The shortcut, stated plainly:** cross-message state is an in-memory dict, so the correction button
+dies on restart — it says the page is gone and asks for it again rather than misbehaving. The
+`mathcheck_problems` table replaces it at deploy time. Locally a restart mid-conversation is rare;
+in production it's routine, so this is a deploy blocker, not a design one.
+
+**What I can't test yet:** none of this has touched Telegram. The `.env` token belongs to the
+inspiration bot, and running two bots on one token is a guaranteed `409` — the exact failure sitting
+in `failure_modes.md`. A separate token per environment was always the rule; this is the first time
+it binds.

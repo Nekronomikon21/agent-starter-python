@@ -49,6 +49,8 @@ class Row:
 
     problem: Problem
     correct_answer: str | None = None
+    # Once the user tells us what they wrote, no model gets to second-guess it.
+    answer_source: Literal["read", "user_confirmed"] = "read"
     status: Status = "pending"
     verdict: Review | None = None
     # Set when the row is cleared, so a review already in flight can be cancelled.
@@ -180,3 +182,30 @@ async def check_page(
         if row.needs_user:
             row.status = "awaiting_user"
     return result
+
+
+async def apply_correction(
+    row: Row, answer: str, image: bytes, *, media_type: str = "image/jpeg"
+) -> Row:
+    """The user has told us what they actually wrote. Re-decide the row.
+
+    Re-runs from `compare`, never from `read_page`: their word is authoritative
+    and nothing re-reads it (`docs/failure_modes.md`).
+    """
+    row.problem = row.problem.model_copy(update={"student_answer": answer, "read_ok": True})
+    row.answer_source = "user_confirmed"
+    row.verdict = None
+    row.settled = asyncio.Event()
+
+    if row.correct_answer is None:  # e.g. a row we skipped as a drawing
+        row.correct_answer = await solve(row.problem.statement)
+
+    if compare(answer, row.correct_answer) == "agree":
+        row.status = "cleared"
+        row.settled.set()
+        return row
+
+    row.status = "disputed"
+    row.verdict = await review(image, row.problem.statement, label=row.label, media_type=media_type)
+    row.status = _OUTCOME[row.verdict.verdict]
+    return row
