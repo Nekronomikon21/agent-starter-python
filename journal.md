@@ -111,3 +111,209 @@ Lessons, both now in `failure_modes.md`:
   pollers. It wasn't — `main()` logged once; the child is a loguru `enqueue=True` spawn artifact
   on Windows, which re-imports the module under a non-`__main__` name so the guard holds. Check
   what a process actually *did* (its log) before trusting what its command line implies.
+
+## 2026-09-03 23:26 — Project defined: a photo-in, steps-out maths homework bot
+Started the real project (docs/ had been untouched templates until now). Walked stages 1–3 before
+any code, per the method. The decisions worth recording:
+
+- **Scope: school-level homework, for kids.** Not university, not olympiad. A bounded domain is the
+  single biggest reliability lever available — and it's a real audience we can test with at a table.
+- **Photo is the front door.** The insight in `problem.md`: the maths isn't the friction, *getting
+  the problem off paper* is. Nobody retypes `3(x − 4) = 2x + 5` at 21:00. Text input still works
+  because it costs nothing and it's the only way to write offline tests.
+- **Steps, never a bare answer.** A final number is exactly the thing search already provides badly.
+- **No self-verification in v1 — decided, not overlooked.** Chose a strong model + an honest standing
+  caveat over a sympy check or a two-solve comparison. Recorded in `problem.md` as an *accepted gap*
+  with a named trigger for revisiting: any wrong answer seen in real use. I pushed back on this (a
+  wrong worked solution gets copied into a notebook and learned) and was overruled deliberately —
+  which is the right way for it to be overruled.
+- **The mitigation that survived anyway: restate the problem before solving it.** It's not
+  verification of the maths, it's verification of the *reading* — and photo misreads (a 6 for a 5, a
+  dropped exponent) are a failure class no model tier fixes. One line, near-zero cost, catches it.
+
+Two failure modes I'd have missed without the inspiration_bot scars: **PTB's 5s default read
+timeout** kills every `get_file` on this link (text works, photos never do — that asymmetry is the
+tell), and **maths notation collides with Telegram Markdown** — `*`, `_`, `^`, `\` are exactly the
+control characters, so a correct solution can arrive mangled or not at all. Both are in
+`failure_modes.md` before a line of code, rather than after a debugging evening.
+
+Next: stage 4 (`policy.md` — the system prompt and the restate/solve/follow-up flow) and stage 5
+(`architecture.md`), then tests before the bot.
+
+## 2026-09-04 11:51 — Reframed: a checker, not a solver. Which reopens the verification decision.
+One sentence from the user moved the whole project: *"I have solved a math problem, but I don't know
+whether I'm right. The bot should first check my answer and if it's wrong find my mistake."*
+
+Yesterday's design solved problems from a photo, and treated the kid's own pencil working as a
+**distractor to ignore** — it was literally a row in `failure_modes.md`. That working is now the
+payload. Rewrote stages 1–3 (`problem.md`, `user_stories.md`, `failure_modes.md`, `scenarios.md`,
+README) rather than patching them; the failure surface is different enough that patching would have
+left yesterday's assumptions buried in the text.
+
+**What actually changed, and why it matters:**
+
+- **The dominant failure inverted.** For a solver, the risk is a wrong solution — visible, because
+  the steps are on screen and a user can inspect them. For a checker, the risk is a wrong **verdict**,
+  which is a single bit with nothing to inspect. And it's *asymmetric*: a false "you're wrong" sends
+  a kid to rewrite a correct answer and to distrust their own work. That's worse than any wrong
+  solution the previous design could have produced.
+- **So the "no self-verification" decision from yesterday no longer follows from its own reasoning.**
+  I accepted it then because errors would be visible in the shown steps. That argument doesn't
+  survive the reframing, so I've marked it *open* in `problem.md` rather than silently carrying it
+  forward. Flagged for the user to re-decide — with the observation that checking *equivalence* is a
+  far narrower and cheaper use of a CAS than solving, so the middle path is much better value here
+  than it was yesterday.
+- **Anchoring is now a hard rule.** If the model sees the student's wrong working before it solves,
+  it tends to agree with it — so a wrong answer gets a tick. **Solve independently first, let their
+  steps in only for the comparison.** This is an ordering constraint on the architecture, not a
+  prompt nicety, and it's the kind of thing that would have been near-impossible to retrofit.
+- **Generous marking is a first-class requirement.** `2/4` vs `1/2`, `0.75` vs `3/4`, `17 = x` vs
+  `x = 17`, factorising where the class completed the square. Every one of those is a *correct*
+  answer that a naive string comparison calls wrong. This is where a checker loses a user for good.
+- **One mistake, not four.** A slip at line 2 makes lines 3–6 "wrong" as well, but there is only one
+  error. Report the **first divergence** and say the rest follows correctly from where they were.
+  That's the difference between teaching and marking.
+- **Reading handwriting, not print.** Harder, and it introduces a failure the solver never had: a
+  misread digit produces a confidently explained mistake *at a line the kid never wrote*. Hence:
+  restate the reading before any verdict, and when uncertain **ask, don't accuse**.
+
+Added two named test sets in `scenarios.md` that serve as the stage-8 gate — a **false-accusation
+set** (10 correct answers in varied forms and methods; a single false "wrong" is a release blocker)
+and a **first-divergence set** (10 attempts with a planted error at a known line). These are the two
+things that decide whether the bot is any good, and neither can be checked by unit tests.
+
+Next: the open verification decision, then stage 4 (`policy.md`) and stage 5 (`architecture.md`).
+
+## 2026-09-04 12:06 — Architecture: speculative race between a fast solver and a slow reviewer
+The user designed this one; I mostly stress-tested it and wrote it down (`docs/architecture.md`).
+Model 1 reads the page into rows. Models 2 (fast, re-solves from the statement) and 3 (strong, walks
+the student's working) start **at the same time** over those rows; any row where model 2 agrees with
+the student is settled instantly and model 3 is cancelled on it — or skips it if it hasn't got there.
+
+**Why it's good, beyond the obvious latency win.** I'd raised two objections yesterday and this
+design absorbs both:
+
+- *Anchoring* becomes structural. `solve` receives only the `statement` column — the student's steps
+  physically aren't in its context. That's a wall, not a prompt instruction that can drift.
+- *"Don't put the cheap model on the verdict"* — **I was wrong about this and said so.** The fast
+  model can only ever *clear* a row (agreement with the student, i.e. two independent sources
+  concurring). Every disagreement escalates to the strong model. That's the correct use of a cheap
+  tier: a fast path with escalation, not a decision-maker.
+
+The consequence I hadn't seen until I walked the truth table: the case *student right, fast model
+wrong* — the false accusation I've been most worried about since the reframing — is exactly a
+disagreement, so it routes into the strong model automatically. The expensive check runs only where
+it's needed, and it's already in flight by the time we know we need it.
+
+**The one flaw, and it's a serious one.** `review` runs *only* on rows where something has
+apparently gone wrong. Prompt it as "find the student's mistake" and it will find one — in correct
+work too. A model asked to locate an error in a flawless derivation invents a plausible one. That
+turns the best safety mechanism in the system into a generator of false accusations. So `review`
+must be framed as "are these steps valid?" with **exoneration as a first-class outcome**, and it
+must never see `correct_answer` (which would tell it what conclusion to reach). Logged as open
+decision 2, and it's the highest-risk detail in the whole design.
+
+Two smaller calls: `compare` is **plain code, not a model** (sympy) — `2/4`, `0.5` and `1/2` are one
+answer, and it's the most-run step in the system, so determinism is free quality. And `read_page`
+must capture the student's working **in order**, not just their final answer; `review` has nothing
+to walk without it. That column would have been easy to leave out and expensive to add later.
+
+The database earned its place after all — I'd questioned it as over-engineering when it looked like a
+hand-off between two steps, but with two workers racing over shared rows it's a genuine work queue
+with per-row state, which is what makes cancel-and-skip safe.
+
+Next: stage 4 (`policy.md`) — the reply shapes for cleared / diagnosed / uncertain, and the tone
+rules for telling a child they're wrong. Then tests before any bot code.
+
+## 2026-09-04 12:09 — Two messages: the fast answer, then the explanation
+User added: the moment the fast model finishes, send a first message with the correct answers for
+the problems the student got wrong; the diagnosis follows. Good for the user (a number to retry with
+immediately, instead of staring at a spinner), and it collides with two things already written.
+
+**It spends the false-accusation guard before it fires.** The whole point of racing the strong model
+was to catch *student right, fast model wrong* before the kid hears about it. Announcing at the end
+of the fast pass means the kid has already been told, and `review` can only retract. Prevention
+demoted to correction.
+
+The fix turned out to be **wording, not architecture**: message 1 *reports* rather than *judges* —
+"I get 17 for #2, checking your working now," never "you're wrong." Identical information, identical
+speed, but a number the bot got is revisable where an accusation isn't. Retraction is now a designed
+message ("actually, your 9 is right; my first pass had it wrong") and `exonerated` is a row
+**state**, so a retraction is something the system owes rather than something we hope got sent. The
+general shape is worth remembering: when a fast path publishes before a slow path verifies, weaken
+the *claim* rather than delay the message.
+
+**The second collision is with our own problem statement, and I flagged it rather than solved it.**
+`problem.md` says the thing that fails you today is that the back of the book gives the final answer
+and nothing else. Message 1, taken literally, *is* the back of the book, and it arrives first and
+short, so it's the one that gets read. I still think the call is right (knowing the answer lets you
+retry it yourself, which beats reading someone else's explanation), but it puts a real burden on
+stage 4: message 1 has to stay thin enough that the diagnosis is visibly where the value is. Carried
+into `policy.md` as a tone constraint rather than left as a good intention.
+
+Open decision 5 added: message 1 after the whole fast pass (drafted) vs. per row, which is faster
+but noisy on a page of eight.
+
+## 2026-09-04 12:49 — Asking the user: gated by a 0/1 read flag, with a ladder and a back-door
+User specified the whole misread interaction: ask the user (reply is "yes" or the number); if the
+answer isn't something you can type — a set, a graph — re-read the image instead; if that fails too,
+offer a poll of likely readings. Plus a standing **"you misread my answer"** button on every reply,
+listing task labels (1, 2, 3a, 3b), which reopens one task for a typed answer or a new photo.
+
+And the constraint that makes it affordable: **don't confirm every answer.** `read_page` marks each
+task 0 or 1 at read time — 1 means "clear, don't bother the user."
+
+**The refinement I added: two gates, not one.** `read_ok = 0` alone isn't enough to justify a
+question. The bot should ask only when the reading was shaky **and the row is disputed** — because a
+shaky reading that still agreed with the correct answer needs no confirmation. That drops the
+question rate to roughly the intersection of two already-small sets, and it means the common case
+(everything right) is silent. Worth noting the general form: don't validate an input until something
+downstream actually depends on it being right.
+
+**Also added `uncertain_field`.** A bare per-row 0/1 says *something* is shaky but not *what*, and
+`clarify` needs to know whether to ask about the answer, the statement or the steps. One extra enum
+column turns a vague "did I read this right?" into "for 3a I read your answer as 1 — is that right?"
+
+**And `label`.** The user's example — 1, 2, 3a, 3b — killed my assumption that a row index would do.
+Tasks have names as written on the page, and that's what the user taps. Easy to add now, migration
+later.
+
+Two notes on the ladder as designed. Step 2's re-read must be **targeted at one field**, not a second
+full pass: re-running the same prompt on the same image mostly reproduces the same misreading, while
+"transcribe exactly the final answer of 3a" is a genuinely different, narrower task. And the
+correction back-door re-runs a row from `compare`, **never** from `read_page` — once the user has
+told us what they wrote, that is authoritative and no model gets to second-guess it (`answer_source
+= user_confirmed`).
+
+**One honest limit.** `read_ok` is a model's own estimate of its reading, and models are overconfident
+— it will occasionally return 1 on a misread. So the flag reduces interruptions; it doesn't make
+misreads impossible. That's precisely why the `valid` exit and the correction button both exist: three
+independent nets, each cheap, none load-bearing alone.
+
+Next: `policy.md` (stage 4) — exact wording for both messages, the clarify question, the poll, the
+retraction, and the tone rules.
+
+## 2026-09-04 16:14 — Docs tightened, risks re-rated, policy.md drafted
+Cut the water: user_stories 50→34, scenarios 110→72, failure_modes 72→59. Dropped stories that
+described Telegram rather than the product (`/start`, "send a photo", "type instead"). Added the rule
+to `CLAUDE.md` so it holds for every doc from here.
+
+**The risk re-rating had real content, not just trimming:**
+- **`compare` is the #1 risk, not `solve`.** Student answers reach sympy as OCR text — `x = 17 cm`,
+  `17`, `{1, 3}`, `1/2 or 0.5`. Parsing *that* is where a correct kid gets failed. It was one row
+  among twenty; it should have been at the top.
+- **`solve` slipping is low, not medium.** The user was right that school algebra doesn't trouble a
+  modern model. That doesn't weaken the race — it names what the race is actually for: the disputed
+  pile is reading and comparison failures, which is exactly what `review`'s two exits catch.
+- **Anchoring left the table.** `solve` structurally cannot receive the student's steps, so it's an
+  invariant, not a live risk. Rating a solved problem as a risk hides the real ones.
+
+Consequence for stage 6: `compare` deserves the heaviest test coverage in the project — a table of
+real answer strings run offline, no LLM, no photo. Cheapest tests here, guarding the worst failure.
+
+`policy.md` drafted: tone, control flow, the three prompt briefs (including what each model must
+**never** receive), and literal message templates for msg 1, diagnosis, retraction, `wrong_problem`,
+the clarify question, the poll, and the correction flow. Writing the wording out was worth it — it
+forced the "all cleared → no message 2 at all" case, which nothing had specified.
+
+Next: stage 6. `compare` first, offline, before any bot code.

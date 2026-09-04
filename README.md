@@ -8,14 +8,19 @@ An opinionated, batteries-included starter for building AI agents — from simpl
 
 ## ✏️ Your project
 
-> Replace this section with *your* goal (this is stage 2 of the method — see below).
-> Keep it to a few sentences a friend would understand.
+**What I'm building:** A Telegram bot that **checks maths homework you've already done**. You
+photograph the problem with your working; it tells you whether you're right, and if you're not, it
+finds the *first* line that went wrong and explains that one mistake.
 
-**What I'm building:** _(one sentence)_
+**Who it's for and why:** Kids doing maths homework. The back of the book gives the final answer
+only — so it tells you you're wrong and nothing else, and re-reading your own working for your own
+mistake is the exact thing you just proved you can't do.
 
-**Who it's for and why:** _(a sentence or two)_
+**What "done" looks like:** Snap the page, and within seconds get the five-second glance a teacher
+would give it: *"line 2 — the −4 gets multiplied too."* One mistake, named, at the right line.
 
-**What "done" looks like:** _(what can the user do that they couldn't before?)_
+> Being told you're wrong when you're right is the worst thing this bot can do. See
+> `docs/failure_modes.md`.
 
 ---
 
