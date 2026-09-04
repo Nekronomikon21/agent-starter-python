@@ -64,6 +64,10 @@ async def _allowed(update: Update) -> bool:
     """Authorization on top of Telegram's authentication. Declines before any paid call."""
     allow = get_settings().allowed_ids
     user = update.effective_user
+    # Logged so an id can be added to the allowlist without calling getUpdates,
+    # which would terminate the running long-poll (`journal.md` 2026-08-17).
+    if user is not None:
+        logger.info("message from telegram id {} (@{})", user.id, user.username or "-")
     if allow and (user is None or user.id not in allow):
         if update.message:
             await update.message.reply_text("This bot isn't enabled for you.")
@@ -127,6 +131,8 @@ async def on_fix(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if query is None or update.effective_user is None:
         return
     await query.answer()
+    if not await _allowed(update):
+        return  # a stranger has no session anyway, but the check belongs on every path
     session = SESSIONS.get(update.effective_user.id)
     if session is None or session.result is None:
         await query.edit_message_text("That page is gone — send it again and I'll recheck it.")
@@ -187,6 +193,10 @@ async def on_error(_: object, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def post_init(app: Application) -> None:
+    if not get_settings().allowed_ids:
+        logger.warning(
+            "ALLOWED_TELEGRAM_IDS is empty: anyone who finds this bot can spend your credits"
+        )
     await app.bot.set_my_commands([BotCommand("start", "How this works")])
 
 
