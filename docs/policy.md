@@ -38,13 +38,13 @@ Tell a kid whether their maths is right, and if not, name the first line that we
 ## The three prompts
 
 **`read_page`** — transcribe, don't solve. Per task: `label` as written (`3a`), `statement`,
-`steps` in order, `student_answer`, `read_ok` 0/1, `uncertain_field`. Flag 0 whenever a character
-is genuinely ambiguous; never guess a missing or cut-off character.
+`student_answer`, `read_ok` 0/1, `uncertain_field`. Not the working — `review` reads that itself.
+Flag 0 whenever a character is genuinely ambiguous; never guess a missing or cut-off character.
 
 **`solve`** — solve this problem. Receives `statement` only. Never the student's steps or answer.
 
-**`review`** — find the mistake in these steps. Receives `statement` + `steps`; **never**
-`correct_answer`. Returns the **first** divergence with the rule broken, or `valid` (steps are all
+**`review`** — find the mistake in this student's working, **reading it off the photo**. Receives
+the **image** + `statement` (the thing to check the page against); **never** `correct_answer`. Returns the **first** divergence with the rule broken, or `valid` (steps are all
 fine), or `wrong_problem` (this working isn't for this statement). Everything after the first
 divergence follows correctly from where they were — do not report it.
 

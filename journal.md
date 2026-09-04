@@ -337,3 +337,54 @@ failing the student. That asymmetry is tested explicitly.
 
 Next: `read_page`. Blocked on real handwriting samples — 5–10 photos, some correct, some with a known
 mistake at a known line.
+
+## 2026-09-04 16:39 — Vision research: 87% of errors are transcription, and a flash model wins
+Read Levine et al., *Automated Grading of Handwritten Mathematics Using Vision-Capable LLMs*
+(arXiv 2605.19043) — the same task as this project, published this year.
+
+- **87% of errors in their best model were transcription failures, not rubric misapplication.**
+  Reading the page dominates everything. Independent confirmation of the risk re-rating: `solve`
+  really isn't the problem, and effort spent on solving quality is misallocated.
+- **Gemini 3 Flash beat GPT-5.1 and GPT-5-mini** (89–99% vs 87–95%). A flash-class model won on
+  handwriting. Worth knowing before assuming the expensive tier reads best.
+- **Their errors skewed to false positives** — hallucinating correct work — rather than false
+  negatives. That's the mild direction for us; our worst case is the rarer one in their data.
+- **Image capture beats prompt tuning.** Blur and rotation caused most failures, and they say gains
+  come from better photos, not better prompts. So the retake guidance in `policy.md` is doing more
+  work than any prompt I could write.
+- **They mishandled equivalent expressions** (rounded decimals vs exact fractions) — a model doing
+  the comparison. That is exactly what `compare` was built to avoid, confirmed independently the same
+  day I built it.
+
+**The conflict worth thinking about:** they deliberately chose **one-shot** transcribe+grade over
+separated steps, citing higher accuracy. Our pipeline separates. I don't think we should collapse it
+— separation is what buys the anchoring wall and the fast/slow race — but there's a change that takes
+most of the benefit: **give `review` the photo, not just the transcribed steps.** The anchoring wall
+constrains `solve`, which must never see the student's work; `review` is already allowed to see it.
+Today `review` reasons over a transcription that may itself contain the error it's hunting for, which
+makes the `valid` and `wrong_problem` exits weaker than they look. Logged as open decision 8.
+
+Model choice: the Flash line has moved past the paper's version (`gemini-3.8-flash` shipped two days
+ago; 3.7 is the stable candidate) and our `fast` tier is still `gemini-2.5-flash-lite`. But the
+paper's own headline is that *image capture* dominates — so picking from a leaderboard would be the
+wrong move. Bake-off on the user's real photos when they arrive.
+
+## 2026-09-04 16:40 — `review` reads the photo; `read_page` stops transcribing working
+Applied open decision 8. `review` now receives the **image** plus the `statement` as read, and no
+transcribed steps.
+
+Two things fall out that are worth stating, because neither was obvious when I proposed it:
+
+**`statement` changes role.** It's no longer input for review to reason *from*; it's the thing to
+check the page *against*. That's what finally makes `wrong_problem` mean something concrete — *the
+statement I was given isn't what's on this page* — rather than a vague mismatch feeling. Passing the
+statement is what preserves that exit; reading everything fresh from the photo would lose it.
+
+**`steps` stopped being load-bearing, so it's gone.** Nothing consumed it once review read the page
+itself. Keeping a column no decision depends on is exactly the indirection CLAUDE.md warns against —
+and dropping it makes the read pass cheaper and shorter, which matters because that pass is the
+critical path for message 1. `uncertain_field` narrows to `statement` or `answer` for the same reason.
+
+The anchoring wall is untouched: it always constrained **`solve`**, which still receives only the
+statement and still cannot see the student's work. `review` was always allowed to look — it just
+used to look through a lossy transcription.

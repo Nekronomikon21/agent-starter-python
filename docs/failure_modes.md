@@ -26,6 +26,7 @@ impossible* (`solve` never receives their steps), so it's a hard rule, not a liv
 | What goes wrong | Risk | Handling |
 |---|---|---|
 | Valid alternative method marked wrong | med | Judge the answer; steps only for internal consistency |
+| `review` inherits a transcription error and hunts a bug that isn't there | med | It reads the photo itself, not `read_page`'s text (87% of errors are transcription — `learnings.md`) |
 | Every downstream line flagged, not just the first | med | First divergence only |
 | Msg 1 lands before `review` verifies | high | Msg 1 **reports, not judges**: "I get 17 for 2 — checking" |
 | `review` exonerates a row msg 1 flagged | med | Designed retraction; `exonerated` is a row state, not a hope |

@@ -21,10 +21,10 @@ after every reply the user can still say "you misread me" and correct it by hand
 
 | Module | Does one thing | Input → Output |
 |--------|----------------|----------------|
-| `read_page` | read handwriting + print off the photo | image → `list[Problem]` (label, statement, steps **in order**, student_answer, `read_ok` 0/1, `uncertain_field`) |
+| `read_page` | read the problem and the answer off the photo | image → `list[Problem]` (label, statement, student_answer, `read_ok` 0/1, `uncertain_field`) |
 | `solve` | re-derive the answer, **blind to the student** | statement → `correct_answer` |
 | `compare` | decide if two answers are the same number/expression | (student answer, correct answer) → `agree / differ / uncomparable` |
-| `review` | find the mistake in the student's steps | (statement, steps) → `first_divergence(line, why)`, `valid`, or `wrong_problem` |
+| `review` | find the mistake, reading the page itself | (**photo**, statement) → `first_divergence(line, why)`, `valid`, or `wrong_problem` |
 | `clarify` | resolve a shaky reading, cheapest route first | row → confirmed `student_answer` (see the ladder below) |
 | `correct` | let the user fix a misread after the fact | tapped label + typed answer or new photo → updated row, re-run |
 | `respond` | turn settled rows into chat messages | rows → **message 1**, **message 2**, correction keyboard |
@@ -40,6 +40,12 @@ cannot be — they live in different columns and are never passed. A model shown
 agree with it; this design makes that impossible rather than discouraged. `review` is the one place
 the student's working is allowed into a model, and it **never sees `correct_answer`** — being told
 the expected answer would hand it its conclusion.
+
+**`review` gets the photo, not a transcription** (decided 2026-09-04). 87% of grading errors in the
+literature are transcription errors (`docs/learnings.md`), so reasoning over `read_page`'s output
+means hunting for an error inside text that may already contain it. It reads the working itself, and
+receives `statement` only as the thing to check the page *against* — which is what makes
+`wrong_problem` meaningful: *the statement I was given isn't what's on this page*.
 
 ## The two exits (decided 2026-09-04)
 
@@ -119,11 +125,11 @@ point, and must not read as the footnote.
 
 ```
 photo
-  └─► read_page ──► rows (label, statement, steps[], student_answer, read_ok 0|1, status=pending)
+  └─► read_page ──► rows (label, statement, student_answer, read_ok 0|1, status=pending)
                       │
         ┌─────────────┴──────────────┐          (both start at once)
         ▼                            ▼
-   solve (fast, per row)        review (smart, per row)
+   solve (fast, per row)        review (smart, per row, reads the photo)
         │                            │
         ▼                            │  ── row already cleared   → skip
    compare(student, correct)         │  ── row clears mid-flight → cancel
@@ -159,12 +165,11 @@ Table `mathcheck_problems` — one row per problem found on a photo:
 | `id`, `telegram_id`, `created_at` | every query scoped by `telegram_id` |
 | `label` | **as written on the page** — `1`, `3a`, `3b`. Not a row index; it's what the user taps |
 | `statement` | the problem as read |
-| `steps` | the student's working, **in order** (JSON array) — `review` is useless without this |
 | `student_answer` | as read, or as corrected by the user |
 | `answer_source` | `read` or `user_confirmed` — a corrected answer is never re-read or second-guessed |
 | `correct_answer` | NULL until `solve` fills it |
 | `read_ok` | 0/1 from `read_page`. Gate 1 for asking the user |
-| `uncertain_field` | `statement`, `steps` or `answer`, set when `read_ok = 0`, so the question is specific |
+| `uncertain_field` | `statement` or `answer`, set when `read_ok = 0`, so the question is specific |
 | `status` | `pending / solved / cleared / disputed / awaiting_user / diagnosed / exonerated` |
 
 The table is what makes the race safe: the shared work queue both workers read and write, and where a
@@ -199,5 +204,8 @@ the row to `review` rather than guessing.
    pass completes.
 6. **Should `read_ok` be per row or per field?** Drafted per row (as specified) *plus*
    `uncertain_field`, because a bare per-row flag can't tell `clarify` what to ask about.
+8. ~~Should `review` receive the photo?~~ — **decided 2026-09-04: yes.** It reads the working off
+   the page; `read_page` no longer transcribes steps at all, which makes the read pass cheaper and
+   shorter — and that pass is on the critical path for message 1.
 7. **Which labels go in the correction keyboard** — every task on the page, or only the disputed
    ones? Drafted: all of them, because a misread can also produce a wrongly *cleared* row.
