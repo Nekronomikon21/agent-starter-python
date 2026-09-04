@@ -38,6 +38,21 @@ SAME = [
     ("1/3", "1/3"),
 ]
 
+# Straight off `pages/page01.jpg` -- comma decimals, ±, ∈, an "Отв:" label.
+# None of these were on the design doc's list; the photo found them.
+SAME += [
+    ("-2,5", "-2.5"),
+    ("4,5", "4.5"),
+    ("x = -2,5", "-2.5"),
+    ("x = ±3", "{3, -3}"),
+    ("±3", "{-3, 3}"),
+    ("x ∈ {19, -23}", "{-23, 19}"),
+    ("Отв: x ∈ {19, -23}", "{19, -23}"),
+    ("{-2,5; -11,5}", "{-2.5, -11.5}"),
+    ("√27", "sqrt(27)"),
+    ("19, -23", "{-23, 19}"),
+]
+
 DIFFERENT = [
     ("9", "17"),
     ("3/7", "11/12"),
@@ -47,6 +62,14 @@ DIFFERENT = [
     ("x = 9", "17"),
     ("-17", "17"),
     ("2/3", "3/2"),
+    # page01 №1: only the +9 branch taken, so a root is missing. Incomplete is
+    # still `differ` -- the diagnosis is review's job, not compare's.
+    ("-2,5", "{-2.5, -11.5}"),
+    ("x = -2,5", "{-2,5; -11,5}"),
+    # page01 №2: divided 82 by 4 as 21, not 20.5.
+    ("{19, -23}", "{18.5, -22.5}"),
+    # page01 №5: sqrt(27) is 3*sqrt(3), not 3.
+    ("±3", "{3*sqrt(3), -3*sqrt(3)}"),
 ]
 
 UNREADABLE = [
@@ -55,6 +78,9 @@ UNREADABLE = [
     ("17", ""),
     ("see the graph", "17"),
     ("a straight line through the origin", "y = x"),
+    # page01 №4: answered with a drawn graph. Must route to review, never fail.
+    ("график", "y = x + 2"),
+    ("прямая через начало координат", "y = x"),
 ]
 
 

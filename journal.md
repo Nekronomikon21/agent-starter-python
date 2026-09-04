@@ -388,3 +388,35 @@ critical path for message 1. `uncertain_field` narrows to `statement` or `answer
 The anchoring wall is untouched: it always constrained **`solve`**, which still receives only the
 statement and still cannot see the student's work. `review` was always allowed to look — it just
 used to look through a lossy transcription.
+
+## 2026-09-04 16:46 — First real page broke `compare` in four ways the docs never imagined
+One photo (`scripts/tests/pages/page01.jpg`) and the module I shipped an hour ago was wrong on it.
+
+**`-2,5` vs `-2.5` returned `differ`.** Comma decimals. My splitter treated `,` as an answer
+separator, so a correct kid gets failed by punctuation — the exact #1 risk, in the first real input.
+Three more the same page: `±3` wasn't expanded to two values, `∈` wasn't read as stating an answer,
+and the `Отв:` label tripped the prose check and sent the whole answer to `uncomparable`.
+
+The disambiguation that makes commas tractable: **Russian sets separate with `;` precisely because
+`,` is the decimal point.** So `;` wins when present, and a bare comma is a decimal point only when
+it sits between two digits. `19, -23` is still a list.
+
+**Every one of these came from looking at a photo, not from thinking harder.** Yesterday's docs are
+detailed and none of them predicted a comma. That's the argument for stage 6 running on real inputs
+as early as possible — the design doc's list of edge cases is a list of the ones you can imagine.
+
+The page also happens to contain three distinct diagnosis shapes, which is more than I'd have thought
+to write by hand:
+- №1 — a **lost root** (`2(x+7) = ±9`, only `+9` taken). The answer isn't wrong, it's *incomplete*.
+  `compare` says `differ` on the count, which is right, but the explanation "you lost a root" is a
+  different sentence from "line 2 is wrong". Worth checking `review` can tell those apart.
+- №2 — plain arithmetic (82/4 read as 21, not 20,5). The ordinary case.
+- №5 — the **last** line is the wrong one; `x = √27` is correct and `√27 = 3` is not. A useful
+  counterweight to the assumption that mistakes happen early.
+
+№4 is answered with a drawn graph — the `uncomparable` path, now tested with Cyrillic prose too.
+№3 I can't read confidently (crossed-out digit, and the system is degenerate — both equations are the
+same line, so it has infinitely many solutions). Logged as ⚠️ for the user to confirm.
+
+**Still blocked on the set that matters most:** this page has no fully correct solution, so the
+false-accusation set is still empty. That's the one where a single failure blocks release.
