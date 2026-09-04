@@ -7,10 +7,18 @@ both cost this project an evening once (`journal.md` 2026-08-17).
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 
 from loguru import logger
-from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Message, Update
+from telegram import (
+    BotCommand,
+    Chat,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    Update,
+)
 from telegram.constants import ChatAction
 from telegram.ext import (
     Application,
@@ -25,7 +33,7 @@ from telegram.ext import (
 from agent.config import get_settings
 from agent.logging_setup import setup_logging
 from agent.mathcheck.pipeline import PageResult, apply_correction, check_page
-from agent.mathcheck.respond import correction_reply, message_1, message_2
+from agent.mathcheck.respond import correction_reply, message_1, message_2, reading_note
 
 HELLO = (
     "Send me a photo of a maths problem with your working, and I'll tell you whether "
@@ -94,31 +102,47 @@ async def cmd_start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(HELLO)
 
 
+async def _keep_typing(chat: Chat) -> None:
+    """Telegram's typing status lasts about five seconds; the work takes twenty.
+
+    Sending it once leaves the chat frozen for the rest, which is exactly what a
+    crash looks like. Refresh it until the work is done.
+    """
+    try:
+        while True:
+            await chat.send_action(ChatAction.TYPING)
+            await asyncio.sleep(4)
+    except asyncio.CancelledError:
+        pass
+
+
 async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """The main path: read the page, race the two passes, send both messages."""
     if not await _allowed(update) or update.message is None or update.effective_user is None:
         return
     message = update.message
-    await message.chat.send_action(ChatAction.TYPING)
     await message.reply_text("Reading your page…")
+    typing = asyncio.create_task(_keep_typing(message.chat))
 
-    photo = await message.photo[-1].get_file()  # [-1] is the largest size
-    image = bytes(await photo.download_as_bytearray())
-    session = Session(image=image)
-    SESSIONS[update.effective_user.id] = session
+    try:
+        photo = await message.photo[-1].get_file()  # [-1] is the largest size
+        image = bytes(await photo.download_as_bytearray())
+        session = Session(image=image)
+        SESSIONS[update.effective_user.id] = session
 
-    async def send_fast_pass(result: PageResult) -> None:
-        await message.reply_text(message_1(result))
-        await message.chat.send_action(ChatAction.TYPING)
+        async def announce_read(result: PageResult) -> None:
+            await message.reply_text(reading_note(result))
 
-    result = await check_page(image, on_fast_pass=send_fast_pass)
-    session.result = result
+        async def send_fast_pass(result: PageResult) -> None:
+            await message.reply_text(message_1(result))
 
-    second = message_2(result)
-    if second:
-        await message.reply_text(second, reply_markup=_fix_keyboard())
-    else:
-        await message.reply_text("Nothing else to flag.", reply_markup=_fix_keyboard())
+        result = await check_page(image, on_read=announce_read, on_fast_pass=send_fast_pass)
+        session.result = result
+
+        second = message_2(result)
+        await message.reply_text(second or "Nothing else to flag.", reply_markup=_fix_keyboard())
+    finally:
+        typing.cancel()
 
     # One open question and one row to ask about: a plain reply is unambiguous.
     waiting = [r for r in result.rows if r.status == "awaiting_user"]

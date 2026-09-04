@@ -32,6 +32,7 @@ Status = Literal[
     "exonerated",
     "wrong_problem",
     "uncheckable",
+    "unanswered",
 ]
 
 
@@ -41,6 +42,20 @@ _OUTCOME: dict[str, Status] = {
     "valid": "exonerated",
     "wrong_problem": "wrong_problem",
 }
+
+
+# "?", "x = ?", a dash, a blank: they have not answered it. Checked in code as
+# well as asked of the model, because a missed flag here means `review` is sent
+# to find the mistake in unfinished working — and it will find one.
+_NOT_AN_ANSWER = set("?-—–.…") | {" ", chr(9), chr(10)}
+
+
+def _looks_unanswered(answer: str) -> bool:
+    stripped = answer.strip()
+    if not stripped:
+        return True
+    body = stripped.split("=")[-1]  # "x = ?" -> "?"
+    return all(ch in _NOT_AN_ANSWER for ch in body)
 
 
 @dataclass
@@ -142,12 +157,14 @@ async def check_page(
     image: bytes,
     *,
     media_type: str = "image/jpeg",
+    on_read: Callable[[PageResult], Awaitable[None]] | None = None,
     on_fast_pass: Callable[[PageResult], Awaitable[None]] | None = None,
 ) -> PageResult:
     """Photo → a verdict per problem.
 
-    `on_fast_pass` fires the moment the fast pass finishes every row — that is
-    message 1, sent while the review is still running.
+    `on_read` fires as soon as the page is transcribed, `on_fast_pass` the moment
+    the fast pass finishes every row. Both exist because reading and solving take
+    long enough that silence reads as a crash.
     """
     problems = await read_page(image, media_type=media_type)
     rows = [Row(problem=p) for p in problems]
@@ -157,7 +174,14 @@ async def check_page(
         if row.problem.answer_kind == "drawing":
             row.status = "uncheckable"
             row.settled.set()
+        elif row.problem.answer_kind == "missing" or _looks_unanswered(row.problem.student_answer):
+            # Nothing to compare and nothing to walk. Asking `review` to find the
+            # mistake in unfinished working guarantees it invents one.
+            row.status = "unanswered"
+            row.settled.set()
     result = PageResult(rows=rows)
+    if on_read is not None:
+        await on_read(result)
     if not rows:
         return result
 

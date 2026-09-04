@@ -642,3 +642,32 @@ in production it's routine, so this is a deploy blocker, not a design one.
 inspiration bot, and running two bots on one token is a guaranteed `409` — the exact failure sitting
 in `failure_modes.md`. A separate token per environment was always the rule; this is the first time
 it binds.
+
+## 2026-09-04 18:48 — First real user feedback: it looked frozen, and it called an unanswered problem wrong
+Two reports from the first live use, and the second is the more serious.
+
+**"The bot freezes for too long."** Telegram's typing indicator lasts about **five seconds** per
+`send_action`, and I sent it once. The work takes 15–25s, so the animation died and the chat sat
+silent for the rest — which is indistinguishable from a crash. `failure_modes.md` already said "ack
+in under a second"; it was right and insufficient, because an ack is a moment and the wait is a
+duration. Now: a keep-alive task refreshing the action every 4s, plus a real progress message the
+instant the page is transcribed ("Got it — 5 problems"), which is also the first thing that proves
+the bot actually saw the page rather than hanging on the download.
+
+**"Answers x=? cannot be wrong."** An unanswered problem was being called wrong. The path is exactly
+the drawing bug from this morning, one bug later: `compare` can't parse `?`, the row goes
+`disputed`, and `review` — which only ever runs on disputed rows, and is asked to *find the mistake*
+— duly finds one in working that was never finished. **A model asked to find a fault in a blank will
+find a fault in a blank.**
+
+Third time this session that `uncomparable` has turned out to hide distinct cases: a checkable prose
+answer, a drawing, and now an unanswered problem. Each needed its own route, and each was invisible
+until real input arrived. I'm now treating "compare couldn't parse it" as a *question*, not a state.
+
+Fixed both ways deliberately: `answer_kind = "missing"` asked of `read_page`, **and** a deterministic
+`_looks_unanswered` check in the pipeline. The model flag will sometimes be wrong; the string check
+never is. It also correctly keeps `0` as a real answer, which a sloppier blank test would have eaten.
+
+The user found both of these in about ten minutes of real use. Every one of the last four defects —
+the LaTeX, the drawing, the freeze, the blank — came from running the thing, not from reading the
+docs. 100 offline tests now, and none of them would have caught any of the four.

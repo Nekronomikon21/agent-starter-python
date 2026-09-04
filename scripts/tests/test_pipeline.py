@@ -352,3 +352,70 @@ async def test_correcting_a_drawing_solves_it_first(monkeypatch: pytest.MonkeyPa
 
     assert row.correct_answer == "17"
     assert row.status == "cleared"
+
+
+# --- an unanswered problem is not a wrong answer ------------------------------
+
+
+@pytest.mark.parametrize("written", ["x = ?", "?", "", "   ", "x=", "-"])
+async def test_an_unanswered_problem_is_never_called_wrong(
+    monkeypatch: pytest.MonkeyPatch, written: str
+) -> None:
+    """They hadn't finished it. `review` asked to find the mistake would invent one."""
+    from agent.mathcheck.respond import message_2
+
+    fakes = Fakes([problem("1", "a", written)], {"1": "17"})
+    fakes.install(monkeypatch)
+
+    result = await pl.check_page(IMAGE)
+
+    assert result.rows[0].status == "unanswered"
+    assert fakes.review_started == []
+    text = message_2(result) or ""
+    assert "haven't answered" in text
+    assert "wrong" not in text.lower()
+
+
+async def test_zero_is_a_real_answer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The blank-answer check must not swallow a legitimate 0."""
+    fakes = Fakes([problem("1", "a", "0")], {"1": "0"})
+    fakes.install(monkeypatch)
+
+    result = await pl.check_page(IMAGE)
+
+    assert result.rows[0].status == "cleared"
+
+
+async def test_read_page_flagging_missing_is_honoured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Even when the text looks like an answer, the model's `missing` flag wins."""
+    unfinished = Problem(
+        label="2",
+        statement="b",
+        student_answer="3x - 12 = 2x + 5",  # working that stops partway
+        answer_kind="missing",
+        read_ok=True,
+    )
+    fakes = Fakes([unfinished], {"2": "17"})
+    fakes.install(monkeypatch)
+
+    result = await pl.check_page(IMAGE)
+
+    assert result.rows[0].status == "unanswered"
+    assert fakes.review_started == []
+
+
+async def test_on_read_fires_before_any_solving(monkeypatch: pytest.MonkeyPatch) -> None:
+    from agent.mathcheck.respond import reading_note
+
+    seen: list[str] = []
+
+    async def announce(result: pl.PageResult) -> None:
+        assert all(r.correct_answer is None for r in result.rows), "fires before the solves"
+        seen.append(reading_note(result))
+
+    fakes = Fakes([problem("1", "a", "9"), problem("2", "b", "5")], {"1": "17", "2": "5"})
+    fakes.install(monkeypatch)
+
+    await pl.check_page(IMAGE, on_read=announce)
+
+    assert seen == ["Got it — 2 problems. Working through them now."]

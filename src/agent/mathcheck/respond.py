@@ -50,6 +50,8 @@ def message_1(result: PageResult) -> str:
 
 
 def _diagnosis(row: Row) -> str:
+    if row.status == "unanswered":
+        return f"{row.label} — you haven't answered this one yet. Want me to talk you through it?"
     if row.status == "uncheckable":
         return (
             f"{row.label} — your answer is a drawing, and I can't check one yet. "
@@ -97,3 +99,13 @@ def correction_reply(row: Row) -> str:
     if row.status == "cleared":
         return f"With {answer} for {row.label} — that's right, my mistake."
     return _diagnosis(row)
+
+
+def reading_note(result: PageResult) -> str:
+    """Said once, as soon as the page is read. The first thing that proves we saw it."""
+    count = len(result.rows)
+    if count == 0:
+        return "I can't find a maths problem in that — can you send the exercise?"
+    if count == 1:
+        return "Got it. Working through it now."
+    return f"Got it — {count} problems. Working through them now."

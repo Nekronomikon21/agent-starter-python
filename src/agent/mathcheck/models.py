@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 UncertainField = Literal["statement", "answer"]
-AnswerKind = Literal["value", "words", "drawing"]
+AnswerKind = Literal["value", "words", "drawing", "missing"]
 
 
 class Problem(BaseModel):
@@ -24,7 +24,8 @@ class Problem(BaseModel):
         default="value",
         description=(
             "'value' = a number, expression or set. 'words' = stated in words, e.g. "
-            "'no solution'. 'drawing' = a graph or sketch, with nothing written to check."
+            "'no solution'. 'drawing' = a graph or sketch. 'missing' = they have not "
+            "answered it: blank, 'x = ?', a question mark, or working that stops partway."
         ),
     )
     read_ok: bool = Field(

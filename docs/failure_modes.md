@@ -38,6 +38,7 @@ This is why `review` may exonerate. Told only to "find the mistake", it invents 
 | What goes wrong | Risk | Response |
 |---|---|---|
 | Valid alternative method marked wrong | med | Judge the answer, not the road to it |
+| **An unanswered problem called wrong** — `x = ?`, blank, working that stops partway | high | `compare` can't parse it, the row disputes, and `review` asked for the mistake invents one. `answer_kind = missing` *and* a deterministic blank check route it to `unanswered` |
 | **A drawn answer reviewed as if it were working** | high | `solve` has nothing to solve and `review` invents a critique of the sketch — it did, on page01 №4. `answer_kind = drawing` skips both: say we can't check a drawing |
 | Every downstream line flagged, not just the first | med | First divergence only |
 | Message 1 lands before review verifies | high | It reports, never judges |
@@ -51,7 +52,7 @@ This is why `review` may exonerate. Told only to "find the mistake", it invents 
 | Answer only, no working | high | Verdict yes, diagnosis no — say so |
 | Reads like a red pen | high | Name the step, not the person |
 | Softening a wrong answer | high | Wrong is wrong; a hedge misinforms like a false verdict |
-| Check takes 15–20s | high | Ack in under a second |
+| Check takes 15–20s | high | Ack in under a second, then **refresh the typing action every 4s** — Telegram's lasts ~5s, so sending it once leaves the chat looking crashed |
 | LLM call fails | med | One honest sentence; the bot stays up |
 | Same token dev + prod | high | `409`. Separate token per environment |
 | Updater dies, process lives | med | `add_error_handler`. "It's running" is not a health check |

@@ -42,6 +42,15 @@ solutions"*, *"no solution"*.
 where they were. Two other answers are allowed and expected: **`valid`** (the steps are all fine)
 and **`wrong_problem`** (this working isn't for the statement I was given).
 
+## While it works
+
+Silence reads as a crash, and the work takes 15–25s. Three signals, in order:
+
+1. *"Reading your page…"* — instant.
+2. *"Got it — 5 problems. Working through them now."* — the moment the page is transcribed. The
+   first thing that proves it actually saw the page.
+3. The typing indicator, **refreshed every 4 seconds** until the work is done.
+
 ## Message 1 — the good news, early
 
 Fires when the fast pass finishes. It names the rows that came back right and says the rest are
@@ -64,6 +73,10 @@ The answer comes **last**, after the reason, so the explanation is what gets rea
 **Retraction** (`review` returned `valid`):
 
 > Actually, your 9 for 2 is right — my first pass had it wrong.
+
+**An unanswered problem** — never a verdict:
+
+> 1 — you haven't answered this one yet. Want me to talk you through it?
 
 **A drawn answer** (`answer_kind = drawing`) — we don't check it, and say so:
 
