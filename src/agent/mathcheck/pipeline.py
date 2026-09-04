@@ -13,9 +13,12 @@ across messages, and arrives with the Telegram layer that needs it.
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Literal
+
+from loguru import logger
 
 from agent.mathcheck.compare import compare
 from agent.mathcheck.models import Problem
@@ -104,6 +107,13 @@ async def _solve_row(row: Row, changed: asyncio.Event) -> None:
         row.settled.set()  # drops any review already running on this row
     else:
         row.status = "disputed"
+    logger.info(
+        "solve {}: ours {!r} vs theirs {!r} -> {}",
+        row.label,
+        row.correct_answer,
+        row.problem.student_answer,
+        row.status,
+    )
     changed.set()
 
 
@@ -146,11 +156,14 @@ async def _review_worker(
         if running in done:
             cleared.cancel()
             if row.status == "cleared":
+                logger.info("review {}: landed after the row cleared; discarded", row.label)
                 continue  # it landed just after the row settled; throw it away
             row.verdict = running.result()
             row.status = _OUTCOME[row.verdict.verdict]
+            logger.info("review {}: {} -> {}", row.label, row.verdict.verdict, row.status)
         else:
             running.cancel()  # speculative work on a row that turned out fine
+            logger.info("review {}: cancelled, the fast pass cleared it", row.label)
 
 
 async def check_page(
@@ -166,6 +179,7 @@ async def check_page(
     the fast pass finishes every row. Both exist because reading and solving take
     long enough that silence reads as a crash.
     """
+    started = time.monotonic()
     problems = await read_page(image, media_type=media_type)
     rows = [Row(problem=p) for p in problems]
     # A drawn answer has nothing to compare and nothing to walk. Solving it wastes
@@ -183,9 +197,16 @@ async def check_page(
     if on_read is not None:
         await on_read(result)
     if not rows:
+        logger.warning("check_page: nothing to check — the page read as empty")
         return result
 
     checkable = [r for r in rows if r.status == "pending"]
+    skipped = [r for r in rows if r.status != "pending"]
+    if skipped:
+        logger.info(
+            "check_page: skipping {}",
+            ", ".join(f"{r.label} ({r.status})" for r in skipped),
+        )
     if not checkable:
         if on_fast_pass is not None:
             await on_fast_pass(result)
@@ -205,6 +226,11 @@ async def check_page(
     for row in rows:
         if row.needs_user:
             row.status = "awaiting_user"
+    logger.info(
+        "check_page: done in {:.1f}s — {}",
+        time.monotonic() - started,
+        ", ".join(f"{r.label}={r.status}" for r in rows),
+    )
     return result
 
 
@@ -216,6 +242,7 @@ async def apply_correction(
     Re-runs from `compare`, never from `read_page`: their word is authoritative
     and nothing re-reads it (`docs/failure_modes.md`).
     """
+    logger.info("correction {}: user says they wrote {!r}", row.label, answer)
     row.problem = row.problem.model_copy(update={"student_answer": answer, "read_ok": True})
     row.answer_source = "user_confirmed"
     row.verdict = None

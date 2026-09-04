@@ -16,7 +16,7 @@ os.environ.setdefault("OPENROUTER_API_KEY", "test-key-not-real")
 
 from agent.mathcheck import pipeline as pl  # noqa: E402
 from agent.mathcheck.models import Problem  # noqa: E402
-from agent.mathcheck.review import Review  # noqa: E402
+from agent.mathcheck.review import Review, Verdict  # noqa: E402
 
 IMAGE = b"not-really-a-jpeg"
 
@@ -34,10 +34,13 @@ def problem(label: str, statement: str, answer: str, read_ok: bool = True) -> Pr
 class Fakes:
     """Stand-ins for the three models, with counters."""
 
-    def __init__(self, problems: list[Problem], answers: dict[str, str], verdict: str = "mistake"):
+    def __init__(
+        self, problems: list[Problem], answers: dict[str, str], verdict: Verdict = "mistake"
+    ):
         self.problems = problems
         self.answers = answers  # label -> what `solve` returns
-        self.verdict = verdict
+        # Annotated: pyright widens an inferred attribute type back to `str`.
+        self.verdict: Verdict = verdict
         self.review_started: list[str] = []
         self.review_finished: list[str] = []
 

@@ -45,7 +45,7 @@ transcription error can't propagate into the diagnosis.
 
 | Module | Tier |
 |--------|------|
-| `read_page` | vision, handwriting-capable — undecided, see `learnings.md` |
+| `read_page` | vision, handwriting-capable — undecided, see `learnings.md`. An **empty** read retries once on `balanced`: one model shrugging at a page is not proof the page is blank |
 | `solve` | `balanced` — measured on page01: `fast` scored 1/3, `balanced` 3/3 (`learnings.md`) |
 | `review` | `smart` — it decides accusations, and exonerates |
 

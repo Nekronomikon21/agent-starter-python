@@ -45,6 +45,7 @@ This is why `review` may exonerate. Told only to "find the mistake", it invents 
 | Review exonerates a row message 1 flagged | med | Retract explicitly; `exonerated` is a state |
 | Right answer, wrong method | low | Say right, then note the step that doesn't follow |
 | Whole page, several attempted | high | Ask which one |
+| **The reader finds nothing on a page that has something on it** | high | "I can't find a maths problem in that" reads as *the bot never saw my page*. An empty read is retried once on a second model; only if both find nothing do we say so, and the photo is kept in `logs/unread/` so the failure can be re-run |
 | Blurry / cropped / angled | high | Name what's unreadable, one retake tip, no verdict |
 | Ambiguous `1`/`7`, `x` vs `×` | high | `read_ok = false` → ask |
 | Unreadable diagram | med | Ask for the labels; never invent an angle |
@@ -53,7 +54,8 @@ This is why `review` may exonerate. Told only to "find the mistake", it invents 
 | Reads like a red pen | high | Name the step, not the person |
 | Softening a wrong answer | high | Wrong is wrong; a hedge misinforms like a false verdict |
 | Check takes 15–20s | high | Ack in under a second, then **refresh the typing action every 4s** — Telegram's lasts ~5s, so sending it once leaves the chat looking crashed |
-| LLM call fails | med | One honest sentence; the bot stays up |
+| LLM call fails | med | One honest sentence **sent to the chat** — the error handler logs but replies to nobody, so `on_photo` says it itself and re-raises. The bot stays up |
+| **A failure nobody can diagnose** | high | Every stage logs what it did — model, timing, what was read, why each row was routed as it was. Without it a bug report is unanswerable |
 | Same token dev + prod | high | `409`. Separate token per environment |
 | Updater dies, process lives | med | `add_error_handler`. "It's running" is not a health check |
 | Anything else calling `getUpdates` | med | Kills the running long-poll |

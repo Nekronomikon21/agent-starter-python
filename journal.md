@@ -671,3 +671,44 @@ never is. It also correctly keeps `0` as a real answer, which a sloppier blank t
 The user found both of these in about ten minutes of real use. Every one of the last four defects —
 the LaTeX, the drawing, the freeze, the blank — came from running the thing, not from reading the
 docs. 100 offline tests now, and none of them would have caught any of the four.
+
+## 2026-09-04 19:04 — A bug report I couldn't answer, because the pipeline says nothing
+
+"The problem with the second photo, my page wasn't read." I went to the log and found this, in full:
+
+```
+18:49:10 | message from telegram id 1025790222
+18:52:46 | message from telegram id 1025790222
+```
+
+That is the entire record of two live runs. `read_page`, `solve`, `compare` and `review` log
+**nothing** — not the model, not the timing, not what was transcribed, not why a row went where it
+went. The only thing the log proves is that the bot was alive and got the photo. It didn't crash
+(`on_error` would have logged), so it answered — and what it answered is unrecoverable.
+
+**That's the real defect.** Four of the last five bugs were found by running the thing rather than
+reading the docs (this journal keeps saying so), and I had built something that can be run but not
+read afterwards. A bug report you can only respond to with a guess is a bug report you can't fix.
+
+So: every stage now says what it did. One compact line per read (model, count, elapsed, each row's
+statement → answer and kind), one per solve (ours vs theirs → cleared/disputed), one per review
+verdict *including the cancellations*, and one summary line per page.
+
+**The likely cause of the actual report, and why it's a design error either way.** Zero problems read
+→ `reading_note` says *"I can't find a maths problem in that"*. One flaky vision call produces that
+sentence, and the user reads it as **the bot never saw my page** — which is exactly the phrasing that
+came back. Same shape as the three `uncomparable` splits: **"I found nothing" and "there is nothing
+here" are different claims, and only the second is worth telling anyone.** An empty read now retries
+once on `balanced` before we say it, and if both come back empty the photo is kept in `logs/unread/`,
+because a vision failure is reproducible from the image and from nothing else.
+
+**One more hole, found while I was in there.** If `check_page` raises, `on_photo` re-raises to the
+error handler, which logs — and replies to nobody. The user sits on "Reading your page…" forever.
+That is the frozen chat from 18:48 arriving by a second route, and `failure_modes.md` had already
+claimed "one honest sentence; the bot stays up" for it. The doc described an intention the code
+didn't have. Now it says it in the chat and re-raises so the traceback still lands.
+
+Cost: nothing on the happy path — the fallback read only ever runs on a page that read as empty.
+
+**Not verified against the real photo.** I don't know what the bot actually replied at 18:52, and
+after this change I'd know. Next time it happens the log answers it.

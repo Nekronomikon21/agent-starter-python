@@ -8,6 +8,7 @@ both cost this project an evening once (`journal.md` 2026-08-17).
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from dataclasses import dataclass
 
 from loguru import logger
@@ -127,6 +128,7 @@ async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         photo = await message.photo[-1].get_file()  # [-1] is the largest size
         image = bytes(await photo.download_as_bytearray())
+        logger.info("photo from {}: {} bytes", update.effective_user.id, len(image))
         session = Session(image=image)
         SESSIONS[update.effective_user.id] = session
 
@@ -141,12 +143,24 @@ async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 
         second = message_2(result)
         await message.reply_text(second or "Nothing else to flag.", reply_markup=_fix_keyboard())
+
+        # One open question and one row to ask about: a plain reply is unambiguous.
+        waiting = [r for r in result.rows if r.status == "awaiting_user"]
+        session.awaiting = waiting[0].label if len(waiting) == 1 else None
+    except Exception:
+        # The error handler logs, but it sends nothing — and the user is left on
+        # "Reading your page…" forever, which is the frozen chat again by another
+        # route (`journal.md` 2026-09-04 18:48). Say so in the chat, then re-raise
+        # so the failure still reaches the log in full. Suppressed, because if the
+        # network is what broke, this reply fails too and must not mask the cause.
+        with suppress(Exception):
+            await message.reply_text(
+                "Something went wrong on my side while reading that page. "
+                "Send it again and I'll retry."
+            )
+        raise
     finally:
         typing.cancel()
-
-    # One open question and one row to ask about: a plain reply is unambiguous.
-    waiting = [r for r in result.rows if r.status == "awaiting_user"]
-    session.awaiting = waiting[0].label if len(waiting) == 1 else None
 
 
 async def on_fix(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
