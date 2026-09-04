@@ -241,12 +241,38 @@ async def post_init(app: Application) -> None:
     )
 
 
+async def on_error(_: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Last-resort handler so a failure can never kill the bot *silently*.
+
+    Without this, an unhandled error (notably `Conflict` — another getUpdates consumer
+    on the same token) stops the updater while the process stays alive. The bot then
+    looks fine and simply never answers again, which is the worst way to fail.
+    """
+    logger.opt(exception=context.error).error("unhandled telegram error: {}", context.error)
+
+
 def build_application() -> Application:
     """Build the python-telegram-bot Application with all handlers attached.
 
     Used by both polling (this file) and the webhook server (app.py).
     """
-    app = ApplicationBuilder().token(_require_token()).post_init(post_init).build()
+    app = (
+        ApplicationBuilder()
+        .token(_require_token())
+        # PTB defaults to a 5s read timeout, which is too tight for Telegram from a
+        # slow or high-latency link — photo downloads (get_file + the file fetch)
+        # fail spuriously with TimedOut. These are ceilings, not fixed waits, so
+        # raising them costs nothing on a fast connection.
+        .connect_timeout(20.0)
+        .read_timeout(30.0)
+        .write_timeout(30.0)
+        .media_write_timeout(60.0)
+        # Must comfortably exceed the long-poll interval, or every poll times out.
+        .get_updates_connect_timeout(20.0)
+        .get_updates_read_timeout(40.0)
+        .post_init(post_init)
+        .build()
+    )
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CommandHandler("profile", cmd_profile))
@@ -257,6 +283,7 @@ def build_application() -> Application:
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
     # Anything else (voice, video, sticker, document) lands here, after the above.
     app.add_handler(MessageHandler(~filters.COMMAND, on_unsupported))
+    app.add_error_handler(on_error)
     return app
 
 

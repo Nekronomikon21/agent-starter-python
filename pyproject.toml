@@ -20,6 +20,7 @@ dependencies = [
     "python-telegram-bot>=21",
     "rich>=15.0.0",
     "tqdm>=4.67.3",
+    "tzdata>=2026.3",
 ]
 
 [project.scripts]
