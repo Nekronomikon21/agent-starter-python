@@ -51,6 +51,11 @@ SAME += [
     ("{-2,5; -11,5}", "{-2.5, -11.5}"),
     ("√27", "sqrt(27)"),
     ("19, -23", "{-23, 19}"),
+    # A repeated root is still one answer. `solve` emitted "{3, 3}" for a
+    # double root and it was scored as differ.
+    ("{3, 3}", "3"),
+    ("x = 3, 3", "3"),
+    ("{1, 3, 3}", "{1, 3}"),
 ]
 
 DIFFERENT = [

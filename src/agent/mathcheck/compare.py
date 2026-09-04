@@ -224,6 +224,15 @@ def _same(a: Expr, b: Expr) -> bool:
         return False
 
 
+def _dedupe(values: list[Expr]) -> list[Expr]:
+    """`{3, 3}` states one answer, not two."""
+    out: list[Expr] = []
+    for value in values:
+        if not any(_same(value, seen) for seen in out):
+            out.append(value)
+    return out
+
+
 def compare(student: str, correct: str) -> Verdict:
     """Is the student's answer the same answer as ours?
 
@@ -232,10 +241,11 @@ def compare(student: str, correct: str) -> Verdict:
     failing a kid because sympy couldn't parse them is the failure this module
     exists to prevent.
     """
-    left = _parse_answer(student)
-    right = _parse_answer(correct)
-    if left is None or right is None:
+    parsed_left = _parse_answer(student)
+    parsed_right = _parse_answer(correct)
+    if parsed_left is None or parsed_right is None:
         return "uncomparable"
+    left, right = _dedupe(parsed_left), _dedupe(parsed_right)
     if len(left) != len(right):
         return "differ"
 
