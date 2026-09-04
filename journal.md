@@ -317,3 +317,23 @@ the clarify question, the poll, and the correction flow. Writing the wording out
 forced the "all cleared → no message 2 at all" case, which nothing had specified.
 
 Next: stage 6. `compare` first, offline, before any bot code.
+
+## 2026-09-04 16:28 — `compare` built and tested; prose parses as maths
+Stage 6 started with the #1 risk, offline: 34 tests, no model, no photo, no credentials. All green,
+ruff and pyright clean.
+
+**The finding worth the whole exercise:** `"see the graph"` parses as `see*the*graph` — a perfectly
+valid sympy product of symbols — so it came back **`differ`**, not `uncomparable`. A kid who writes a
+word answer gets told they're wrong. It's the exact failure this module exists to prevent, it fails
+*silently*, and nothing in the design docs predicted it; only running it did. Fixed by rejecting any
+3+ letter run that isn't a known function (variables are 1–2 chars, prose isn't).
+
+Also: `parse_expr(global_dict={})` breaks the parser (its generated code needs sympy's own names) —
+blank `__builtins__` instead, which is the actual eval risk. `rationalize` is required or 0.75 and
+3/4 compare through float noise. `√8` needs a regex, not a character swap, or it parses as a symbol.
+
+`uncomparable` is deliberately never `differ`: anything unreadable routes to `review` rather than
+failing the student. That asymmetry is tested explicitly.
+
+Next: `read_page`. Blocked on real handwriting samples — 5–10 photos, some correct, some with a known
+mistake at a known line.
