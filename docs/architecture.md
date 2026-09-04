@@ -19,7 +19,7 @@ once when the review lands.
 | `read_page` | read the problem and the answer off the photo | image → `list[Problem]` |
 | `solve` | re-derive the answer, blind to the student | statement → `correct_answer` |
 | `compare` | are two answers the same answer | (student, correct) → `agree` / `differ` / `uncomparable` |
-| `review` | find the mistake, reading the page itself | (photo, statement) → `first_divergence(line, why)` / `valid` / `wrong_problem` |
+| `review` | find the mistake, reading the page itself | (photo, statement, label) → `mistake(line, why)` / `valid` / `wrong_problem` |
 | `clarify` | resolve a shaky reading | row → confirmed `student_answer` |
 | `correct` | let the user fix a misread afterwards | label + typed answer or new photo → updated row |
 | `respond` | settled rows → chat messages | rows → message 1, message 2 |

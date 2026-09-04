@@ -23,6 +23,28 @@ know now" — keep it tidy and current.
 - **`√8` needs a regex, not a character swap.** `√`→`sqrt` gives `sqrt8`, which parses as a symbol.
 - Use `Expr`, not `Basic`, in type hints — `Basic` has no `__sub__` and pyright rejects it.
 
+### `review` on page01 (`smart` tier) — 2026-09-04
+
+Named the correct first divergence on all three known-wrong problems, first try, and returned
+`wrong_problem` for a statement not on the page.
+
+| № | line it named | why |
+|---|---|---|
+| 1 | `2(x+7) = 9` | the square root gives ±9; dropping the branch loses a solution |
+| 2 | `x+2 = ±21` | 82/4 is 20,5 — the 82 must be divided, not rounded |
+| 5 | `x = √27` | `x^x` isn't `x²`; `x^x = 27` gives x = 3 since 3³ = 27 |
+
+- **It solved the problem itself to explain №5**, despite never seeing `correct_answer`. The
+  exclusion costs nothing in explanation quality.
+- **Passing the label** (`problem 2`) is what makes it reliable on a five-problem page.
+- **Assert the line, not the verdict.** "It said mistake" passes even when it names a downstream
+  consequence. The quoted line is stable enough to assert on with spaces stripped; the wording of
+  `why` is not.
+- **Don't stub credentials in an integration test module.** `os.environ.setdefault` before `.env`
+  loads wins (`load_dotenv` doesn't override), so every live call 401s with a fake key.
+- **Untested: exoneration.** No page of correct work exists yet, and that is the case `review` is
+  most likely to fail — it only ever runs where something looks wrong.
+
 ### `read_page` bake-off on page01 — 2026-09-04
 
 Run it with `uv run python scripts/bakeoff.py --show`.

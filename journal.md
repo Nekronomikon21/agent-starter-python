@@ -500,3 +500,34 @@ Two things improved in the rewrite rather than just moving:
 
 412 → 402 lines across five docs, but the point was ownership, not length: previously an edit to the
 message wording needed changing in two files, and one of them would have been missed.
+
+## 2026-09-04 17:26 — `review` built; right on all three, and the important test is still unrunnable
+`src/agent/mathcheck/review.py` — photo + statement in, `mistake` / `valid` / `wrong_problem` out,
+never `correct_answer`. On the `smart` tier it named the correct first divergence on all three
+known-wrong problems on page01, first try, and returned `wrong_problem` for a statement that isn't
+on the page.
+
+What it produced is better than I expected on the hardest one: for №5 it worked out that `x^x = 27`
+gives x = 3 because 3³ = 27 — **it solved the problem itself to explain the error**, without ever
+seeing `correct_answer`. So that exclusion costs nothing in explanation quality, which was the one
+thing I was unsure about when I insisted on it.
+
+Two things about testing a model, learned the hard way:
+
+- **Assert the line, not the verdict.** My first version asserted `verdict == "mistake"`, which
+  passes just as happily when the model names a *downstream consequence* instead of the first
+  divergence — the exact failure the module exists to avoid. The quoted line is stable enough to
+  assert on with spaces stripped; the `why` wording is not, and shouldn't be.
+- **Don't stub credentials in a live-test module.** I copied the offline modules'
+  `os.environ.setdefault("OPENROUTER_API_KEY", "test-key-not-real")`, and since `load_dotenv` doesn't
+  override existing vars, the fake key won and every call 401'd. Offline modules need the stub;
+  integration modules must not have it.
+
+**The test that matters most is skipped, deliberately and visibly.** `review` only ever runs on rows
+where something already looks wrong, so the case it's most likely to fail is *correct* work — and
+page01 contains none. The test exists in the file with a skip reason naming the missing fixture, so
+it reads as a known gap rather than an oversight. Three passing mistake-detections say nothing about
+whether it can say "you're right".
+
+Also: passing `label` ("problem 2") is what makes review reliable on a five-problem page. Added to
+the signature; `architecture.md` says (photo, statement), so that line needs updating.
