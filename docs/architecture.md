@@ -45,7 +45,7 @@ transcription error can't propagate into the diagnosis.
 | Module | Tier |
 |--------|------|
 | `read_page` | vision, handwriting-capable — undecided, see `learnings.md` |
-| `solve` | `fast` — it can only *clear* a row; disagreement escalates |
+| `solve` | `balanced` — measured on page01: `fast` scored 1/3, `balanced` 3/3 (`learnings.md`) |
 | `review` | `smart` — it decides accusations, and exonerates |
 
 ## Routing

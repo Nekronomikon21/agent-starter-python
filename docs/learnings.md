@@ -23,6 +23,27 @@ know now" — keep it tidy and current.
 - **`√8` needs a regex, not a character swap.** `√`→`sqrt` gives `sqrt8`, which parses as a symbol.
 - Use `Expr`, not `Basic`, in type hints — `Basic` has no `__sub__` and pyright rejects it.
 
+### `solve` tier — measured, 2026-09-04
+
+page01's three known-answer problems, one run per tier:
+
+| tier | correct | what it got wrong |
+|---|---|---|
+| `fast` (gemini-2.5-flash-lite) | 1/3 | `{37, -41}` for `\|4(x+2)\| = 82`; `{3, -3}` for `x^x = 27` |
+| `balanced` (claude-sonnet-4.6) | 3/3 | — |
+| `smart` (claude-opus-4.8) | 2/3 | `{-2.75, -11.25}` for `(2(x+7))² = 81` |
+
+**Using `balanced`.** Three problems is a small sample, but `fast`'s failures are unambiguous maths
+errors, not formatting, and it repeated 1/3 across two runs.
+
+- **The expensive tier is not the accurate one here.** `smart` slipped on arithmetic `balanced` got
+  right, at 5× the price. Don't assume the ladder is monotonic for school maths.
+- **Every tier makes arithmetic slips**, which is the case for the race: `solve` errors must open a
+  dispute, never a verdict.
+- **Latency didn't track price** — `balanced` returned faster than `fast` on one run. As with the
+  bake-off, single-run latency is noise.
+- `fast` being cheap doesn't help if message 1 announces its wrong answer before `review` runs.
+
 ### `review` on page01 (`smart` tier) — 2026-09-04
 
 Named the correct first divergence on all three known-wrong problems, first try, and returned

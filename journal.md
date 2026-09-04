@@ -531,3 +531,28 @@ whether it can say "you're right".
 
 Also: passing `label` ("problem 2") is what makes review reliable on a five-problem page. Added to
 the signature; `architecture.md` says (photo, statement), so that line needs updating.
+
+## 2026-09-04 17:58 — `solve` built; the cheap tier was unfit and the expensive one wasn't better
+`src/agent/mathcheck/solve.py` — statement in, answer out, never the student's work. Scored with
+`compare`, the same code the pipeline uses to clear a row, so a passing test means the row would
+really clear.
+
+**The `fast` tier scored 1/3** on page01's known-answer problems, twice. Not formatting — real
+errors: `{37, -41}` for `|4(x+2)| = 82`, and `{3, -3}` for `x^x = 27`, where `(-3)^(-3) = -1/27`.
+`balanced` got 3/3. **`smart` got 2/3**, slipping on arithmetic `balanced` got right, at five times
+the price. The ladder isn't monotonic for school maths, which I would not have guessed.
+
+User chose `balanced`. Architecture and the module now say so, with the measurement as the reason.
+
+**This partly reinstates an objection I withdrew.** When I accepted the cheap tier for `solve`, my
+reasoning was that it can only ever *clear* a row, so a slip escalates to `review` rather than
+becoming a verdict. That's still true, and it's why the design is safe. But it ignored **message 1**,
+which announces `solve`'s answer *before* any review — so a wrong cheap answer sends a kid off to
+retry against a wrong number, and the bot has to retract. Safety and quality aren't the same
+property, and I'd collapsed them.
+
+Also, from the same tests: `compare` called `{3, 3}` different from `3`. A repeated root is one
+answer; values are deduplicated structurally now. Third real bug in `compare` found by running it
+rather than reasoning about it.
+
+Sample size is three problems, and I've written that in `learnings.md` rather than dressed it up.
