@@ -471,3 +471,32 @@ one page of five problems, which is noise, not a ranking. Latency isn't rankable
 model took 11s on one run and 68s on the next. The one real signal is that all three can read this
 handwriting, and that 3.8-flash disagreed on the crossed-out digit in №3 (`y = 5` vs `y = 7`) —
 exactly the ambiguity `read_ok = false` exists for.
+
+## 2026-09-04 17:20 — Docs rewritten for single ownership
+The design docs had grown three copies of several things: the "why a dispute isn't a student error"
+table sat in `architecture.md` *and* `failure_modes.md`; message wording sat in `architecture.md`
+*and* `policy.md`; the control-flow order sat in `policy.md` *and* as a diagram in
+`architecture.md`; the hard rules sat in `policy.md` *and* `failure_modes.md`.
+
+Boundary, one owner each:
+
+- **`architecture.md`** — the machine. Modules, what each model may see, routing, row states, schema,
+  tiers. No wording, no risk catalogue, no tone.
+- **`policy.md`** — what it says. Prompts, message text, tone. Points at routing rather than
+  restating it.
+- **`failure_modes.md`** — what breaks and the response. Owns the hard rules, which is what the
+  starter's own template assigns it.
+- **`scenarios.md`** — cases. **`user_stories.md`** — wants.
+
+Two things improved in the rewrite rather than just moving:
+
+- The "what each model may see" **table** replaced three paragraphs of prose about the anchoring
+  wall. `solve`: never the working, never the answer. `review`: never `correct_answer`. Both
+  exclusions are now visible in one glance, which is the right shape for a rule that quietly erodes
+  when someone later "adds a bit of context to help the model".
+- The dispute-routes table moved to `failure_modes.md` where it belongs — it's a risk analysis, not
+  a structure — and it now carries the *reason* `review` may exonerate, instead of that reason living
+  in a different file from the table that motivates it.
+
+412 → 402 lines across five docs, but the point was ownership, not length: previously an edit to the
+message wording needed changing in two files, and one of them would have been missed.
