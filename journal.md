@@ -556,3 +556,35 @@ answer; values are deduplicated structurally now. Third real bug in `compare` fo
 rather than reasoning about it.
 
 Sample size is three problems, and I've written that in `learnings.md` rather than dressed it up.
+
+## 2026-09-04 18:08 — Pipeline built; running it on a real page found a fabricated critique
+`pipeline.py` races the fast solve against the slow review over the rows of one page, and
+`respond.py` turns settled rows into the two messages. 87 offline tests, 20 of them on the race
+itself with the three models faked — cancel-and-skip, the two ask-gates, and message 1 firing before
+the review lands are all provable without spending a penny.
+
+**Then the live run on page01 exposed a route the exits don't cover.** №4's answer is a drawn graph.
+`solve` was handed "y = x + 2", which isn't a question, and returned "infinitely many solutions";
+`compare` said `uncomparable`; the row went `disputed`; and `review` produced a confident, fluent
+critique of the sketch's y-intercept. **A manufactured mistake — the exact failure the `valid` exit
+exists to prevent, arriving by a path that exit can't see**, because there was nothing to walk.
+
+Proof it was a fabrication, from the very next run: `read_page` described the drawing as *"a line
+passing through (0, 2) and (−2, 0)"*, which **is** the correct graph of y = x+2. The bot had
+criticised correct work.
+
+Fix: `answer_kind` (`value` / `words` / `drawing`) on the row. A drawing never reaches `solve` or
+`review` — it's `uncheckable`, and the bot says so plainly. Cheaper too: no solve call, no review
+call. `words` stays checkable, so a student writing "no solution" is still handled.
+
+The general lesson, and it's the third time this session: **`uncomparable` is not one thing.** It
+covers "our answer is prose but checkable" and "there is nothing here to check", and routing them
+identically put the strong model in front of a sketch. A design doc's categories are the ones you
+can imagine; a photo has the ones that exist.
+
+Also fixed: quoted answers carry newlines off the page (`x = 6\ny = 5`), so the clarify question
+broke across lines mid-sentence. Whitespace is flattened before quoting.
+
+**Still open, and it's the user's call:** message 1 on page01 lists four answers, because everything
+is disputed. `policy.md` says keep it thin, and four answers up front is the *back of the book* it
+warns about. Fine at one or two; wrong at five.

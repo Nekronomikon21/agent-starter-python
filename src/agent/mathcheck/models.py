@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 UncertainField = Literal["statement", "answer"]
+AnswerKind = Literal["value", "words", "drawing"]
 
 
 class Problem(BaseModel):
@@ -19,6 +20,13 @@ class Problem(BaseModel):
     )
     # A bool, not Literal[0, 1]: that reaches some providers as a string enum
     # ("0"/"1") and then fails validation. Booleans survive every provider.
+    answer_kind: AnswerKind = Field(
+        default="value",
+        description=(
+            "'value' = a number, expression or set. 'words' = stated in words, e.g. "
+            "'no solution'. 'drawing' = a graph or sketch, with nothing written to check."
+        ),
+    )
     read_ok: bool = Field(
         description="true = read cleanly. false = a character is ambiguous, crossed out or cut off."
     )

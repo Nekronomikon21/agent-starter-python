@@ -62,6 +62,11 @@ Keep it thin: it's the number to retry with, not the answer key. The explanation
 
 > Actually, your 9 for 2 is right — my first pass had it wrong.
 
+**A drawn answer** (`answer_kind = drawing`) — we don't check it, and say so:
+
+> 4 — your answer is a drawing, and I can't check one yet. Send me the working written out and
+> I'll go through it.
+
 **`wrong_problem`:**
 
 > Your working for 2 doesn't match the question I read. Did I read it right, or can you retake it?

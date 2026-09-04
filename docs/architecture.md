@@ -82,7 +82,8 @@ shaky reading that still agreed needs no question.
 
 ## Row states
 
-`pending` → `solved` → `cleared`, or `disputed` → `awaiting_user` / `diagnosed` / `exonerated`.
+`pending` → `cleared`, or `disputed` → `awaiting_user` / `diagnosed` / `exonerated` /
+`wrong_problem`. A drawn answer goes straight to `uncheckable` — never solved, never reviewed.
 A user correction returns any row to `solved` for a fresh `compare`.
 
 `exonerated` exists so a retraction is a state the system owes, not a message we hope got sent.
@@ -99,6 +100,7 @@ A user correction returns any row to `solved` for a fresh `compare`.
 | `student_answer` | as read, or as corrected by the user |
 | `answer_source` | `read` or `user_confirmed` |
 | `correct_answer` | NULL until `solve` fills it. **Not always numeric** — "infinitely many solutions" is an answer |
+| `answer_kind` | `value` / `words` / `drawing`. A drawing skips the whole pipeline |
 | `read_ok` | bool from `read_page`. Gate 1 for asking the user |
 | `uncertain_field` | `statement` or `answer`, set when `read_ok` is false |
 | `status` | see row states |

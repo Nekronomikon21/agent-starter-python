@@ -38,6 +38,7 @@ This is why `review` may exonerate. Told only to "find the mistake", it invents 
 | What goes wrong | Risk | Response |
 |---|---|---|
 | Valid alternative method marked wrong | med | Judge the answer, not the road to it |
+| **A drawn answer reviewed as if it were working** | high | `solve` has nothing to solve and `review` invents a critique of the sketch — it did, on page01 №4. `answer_kind = drawing` skips both: say we can't check a drawing |
 | Every downstream line flagged, not just the first | med | First divergence only |
 | Message 1 lands before review verifies | high | It reports, never judges |
 | Review exonerates a row message 1 flagged | med | Retract explicitly; `exonerated` is a state |
