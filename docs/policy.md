@@ -42,21 +42,24 @@ solutions"*, *"no solution"*.
 where they were. Two other answers are allowed and expected: **`valid`** (the steps are all fine)
 and **`wrong_problem`** (this working isn't for the statement I was given).
 
-## Message 1 — what `solve` got
+## Message 1 — the good news, early
 
-Fires when the fast pass finishes. It **reports, it does not judge** — it goes out before the review
-has verified anything, and a number the bot got is revisable where an accusation isn't.
+Fires when the fast pass finishes. It names the rows that came back right and says the rest are
+being checked. **No answers, no verdicts** — it goes out before the review has verified anything.
 
-> 1 and 3 look right. For 2 I get x = 17, for 3a I get 11/12 — checking your working now.
+> 1 and 3 look right. Checking your working on 2 and 3a now.
 
-All rows cleared → *"All four look right."* and stop. **No message 2 at all.**
+All rows cleared → *"All of them look right."* and stop. **No message 2 at all.**
 
-Keep it thin: it's the number to retry with, not the answer key. The explanation is the point.
+Our answers belong in message 2, beside the explanation that earns them. In message 1 they were an
+answer key arriving first and short — the *back of the book* this project exists to replace.
 
 ## Message 2 — the diagnosis
 
 > **2 — wrong.** Line 2: you wrote 3x − 4; multiplying out 3(x − 4) gives 3x − 12, the −4 gets
-> multiplied too. The rest follows correctly from there.
+> multiplied too. The rest follows correctly from there. The answer is 17.
+
+The answer comes **last**, after the reason, so the explanation is what gets read.
 
 **Retraction** (`review` returned `valid`):
 

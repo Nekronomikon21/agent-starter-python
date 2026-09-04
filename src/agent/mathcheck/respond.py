@@ -10,10 +10,20 @@ from __future__ import annotations
 
 from agent.mathcheck.pipeline import PageResult, Row
 
+_ESCAPES = ("\\n", "\\t", "\\r")
+
 
 def _flat(text: str) -> str:
-    """Answers come off a photo with line breaks in them; a quote must stay one line."""
-    return " ".join(text.split())
+    """A quoted answer must stay on one line.
+
+    Answers come off a photo with real line breaks in them, and sometimes with
+    the two-character escape instead — a model writing a multi-line answer may
+    emit a literal backslash-n, which no amount of whitespace splitting fixes.
+    """
+    out = text
+    for escape in _ESCAPES:
+        out = out.replace(escape, " ")
+    return " ".join(out.split())
 
 
 def _listed(labels: list[str]) -> str:
@@ -23,20 +33,20 @@ def _listed(labels: list[str]) -> str:
 
 
 def message_1(result: PageResult) -> str:
-    """What `solve` got. It reports; it does not judge — the review hasn't run."""
+    """The good news, early. It carries no answers and no verdicts.
+
+    Answers live in message 2, beside the explanation that earns them. Here they
+    were an answer key arriving first and short — the back-of-the-book failure
+    this project exists to replace (`docs/problem.md`).
+    """
     cleared = [r.label for r in result.cleared]
-    open_rows = result.unresolved
+    open_rows = [r.label for r in result.unresolved]
 
     if not open_rows:
         return "That's right." if len(cleared) == 1 else "All of them look right."
-
-    answered = [r for r in open_rows if r.correct_answer]
-    if not answered:
-        return "Give me a moment with these."
-    ours = ", ".join(f"for {r.label} I get {_flat(r.correct_answer or '')}" for r in answered)
     if cleared:
-        return f"{_listed(cleared)} look right. But {ours} — checking your working now."
-    return f"{ours[0].upper()}{ours[1:]} — checking your working now."
+        return f"{_listed(cleared)} look right. Checking your working on {_listed(open_rows)} now."
+    return f"Checking your working on {_listed(open_rows)} now."
 
 
 def _diagnosis(row: Row) -> str:
@@ -58,7 +68,9 @@ def _diagnosis(row: Row) -> str:
             f"Your working for {row.label} doesn't match the question I read. "
             "Did I read it right, or can you retake it?"
         )
-    return f"{row.label} — wrong. {verdict.line}: {verdict.why}"
+    answer = _flat(row.correct_answer or "")
+    ours = f" The answer is {answer}." if answer else ""
+    return f"{row.label} — wrong. {verdict.line}: {verdict.why}{ours}"
 
 
 def _question(row: Row) -> str:

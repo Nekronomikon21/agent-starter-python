@@ -184,11 +184,12 @@ async def test_message_1_reports_and_never_judges(monkeypatch: pytest.MonkeyPatc
     result = await _run(monkeypatch, Fakes(problems, {"1": "17", "2": "17", "3": "5"}))
 
     text = message_1(result)
-    assert "1 and 3 look right" in text
-    assert "for 2 I get 17" in text
-    # It goes out before the review has verified anything.
+    assert text == "1 and 3 look right. Checking your working on 2 now."
+    # It goes out before the review has verified anything...
     for accusation in ("wrong", "mistake", "incorrect"):
         assert accusation not in text.lower(), text
+    # ...and it carries no answer, so it can't be read as an answer key.
+    assert "17" not in text
 
 
 async def test_message_2_names_the_line_and_the_rule(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -196,7 +197,7 @@ async def test_message_2_names_the_line_and_the_rule(monkeypatch: pytest.MonkeyP
 
     result = await _run(monkeypatch, Fakes([problem("2", "b", "9")], {"2": "17"}))
 
-    assert message_2(result) == "2 — wrong. line 2: the rule"
+    assert message_2(result) == "2 — wrong. line 2: the rule The answer is 17."
 
 
 async def test_message_2_retracts_when_the_student_was_right(
@@ -269,3 +270,25 @@ async def test_a_quoted_answer_never_breaks_the_sentence(
 
     assert "\n" not in text
     assert "x = 6 y = 5" in text
+
+
+async def test_a_literal_escape_in_an_answer_is_flattened_too(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """read_page sometimes emits the two-character escape, not a real newline."""
+    from agent.mathcheck.respond import message_2
+
+    messy = Problem(
+        label="3",
+        statement="x + 7 = y + 8; x = y + 1",
+        student_answer="{ x = 6\\n{ y = 5",
+        read_ok=False,
+        uncertain_field="answer",
+    )
+    fakes = Fakes([messy], {"3": "infinitely many solutions"})
+    fakes.install(monkeypatch)
+
+    text = message_2(await pl.check_page(IMAGE)) or ""
+
+    assert "\\n" not in text, text
+    assert "{ x = 6 { y = 5" in text

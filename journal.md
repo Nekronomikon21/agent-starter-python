@@ -588,3 +588,29 @@ broke across lines mid-sentence. Whitespace is flattened before quoting.
 **Still open, and it's the user's call:** message 1 on page01 lists four answers, because everything
 is disputed. `policy.md` says keep it thin, and four answers up front is the *back of the book* it
 warns about. Fine at one or two; wrong at five.
+
+## 2026-09-04 18:19 — Answers moved to message 2
+User's call, and it reverses their original spec (message 1 was to carry the correct answers for
+failed tasks). It resolves the tension I flagged when that spec landed: message 1 was an answer key
+arriving first and short, which is the *back of the book* `problem.md` exists to replace. Now:
+
+- **Message 1** — the good news only. "1 and 3 look right. Checking your working on 2 and 4 now."
+  No answers, no verdicts. It's the rows two independent sources already agreed on, so it's the one
+  message that can't be wrong.
+- **Message 2** — the diagnosis, with our answer **last**, after the reason. "№2 — wrong.
+  x+2 = ±21: … The answer is {18.5, -22.5}." Answer-last is a small nudge toward reading the why.
+
+Note what this costs: the fast-retry benefit that motivated message 1 is gone — you no longer get a
+number to try again with before the explanation arrives. What's left is still worth sending, because
+confirming the right ones early is genuinely useful and costs nothing to be sure of.
+
+**A live-run bug the offline tests couldn't have found:** `read_page` sometimes emits a *literal*
+two-character escape in an answer rather than a real newline, so `{ x = 6\n{ y = 5` went into the
+clarify question with the backslash-n visible. `_flat` split on whitespace, and there was no
+whitespace to split. Now it strips the escape sequences too. Every previous run had produced a real
+newline; only running it again surfaced the other form.
+
+Also seen this run: №5 came back `awaiting_user` rather than diagnosed, because `read_page` was
+unsure whether the exponent was `x^x` or `x^3` and flagged it. That's the gate working — it asked
+instead of accusing — and it's the first time `read_ok = false` has fired on a statement rather than
+an answer.
