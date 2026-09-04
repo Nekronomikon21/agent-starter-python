@@ -23,6 +23,28 @@ know now" — keep it tidy and current.
 - **`√8` needs a regex, not a character swap.** `√`→`sqrt` gives `sqrt8`, which parses as a symbol.
 - Use `Expr`, not `Basic`, in type hints — `Basic` has no `__sub__` and pyright rejects it.
 
+### `read_page` bake-off on page01 — 2026-09-04
+
+Run it with `uv run python scripts/bakeoff.py --show`.
+
+| model | answers | statement | flagged | s |
+|---|---|---|---|---|
+| `anthropic/claude-opus-4.8` | 5/5 | 0.96 | 2 | 7.6 |
+| `google/gemini-3.7-flash` | 5/5 | 0.98 | 1 | 15.8 |
+| `google/gemini-3.8-flash` | 4/5 | 0.98 | 1 | 68.7 |
+
+- **The prompt mattered far more than the model.** Gemini scored 1/5 until the instructions
+  forbade LaTeX; it was emitting `\pm 3` and `egin{cases}`, not misreading. One line took it to
+  5/5. Suspect the harness before the model.
+- **`Literal[0, 1]` breaks structured output** on Gemini — it arrives as a string enum `"0"`/`"1"`
+  and fails validation. Use `bool`. Claude accepted it; Gemini didn't.
+- **Latency is not yet rankable.** The same model took 11s on one run and 68s on the next. Provider
+  variance swamps the difference; don't choose on one run.
+- **№3 (a crossed-out digit) splits them**: 3.8-flash reads `y = 5`, 3.7-flash and Opus read `y = 7`.
+  A genuine ambiguity — exactly what `read_ok = false` is for.
+- **One page can't decide this.** All three are ≥ 4/5 on five problems. Undecided until there are
+  more pages, especially correct ones.
+
 ### Vision model for `read_page` — research, 2026-09-04
 
 Source: Levine et al., *Automated Grading of Handwritten Mathematics Using Vision-Capable LLMs*

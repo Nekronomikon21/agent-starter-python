@@ -442,3 +442,32 @@ partially right, which is a third distinct diagnosis shape after "lost a root" (
 slip" (№2). One page, three shapes; I'd not have invented any of them at a desk.
 
 70 tests. Still no fully-correct page, so the false-accusation set is still empty.
+
+## 2026-09-04 17:08 — Bake-off built; its first finding was a bug in my own prompt
+`scripts/bakeoff.py` runs every page in `scripts/tests/pages/` through each candidate vision model
+and scores the transcription against hand-written ground truth. Built `read_page` and the `Problem`
+row to drive it.
+
+**First run: Opus 4/5, both Geminis 1/5.** That gap was big enough to be suspicious, so I printed
+what each model actually returned instead of trusting the score — and the Geminis were reading the
+page *correctly* and writing it as **LaTeX** (`x \in \{19; -23\}`, `\begin{cases}`, `\pm 3`). My
+instructions said "keep their notation" and never said "not LaTeX". One added line took Gemini from
+**1/5 to 5/5**.
+
+Two lessons, and the second is the one I'll actually reuse: a bake-off's first job is to test the
+harness, not the models; and **when one candidate scores far below another, suspect the scorer.** The
+detail view (`--show`) existed only because the number looked wrong, and it was the whole finding.
+
+The scorer was also unfair on №4, whose answer is a drawn graph: every model gave a sensible prose
+description and every one was marked wrong for not matching my wording. Ground truth now flags prose
+answers so any description counts.
+
+**`Literal[0, 1]` broke structured output on Gemini** — it arrives as a string enum `"0"`/`"1"` and
+fails validation, while Claude accepted it. `read_ok` is a `bool` now. Same meaning, and booleans
+survive every provider. The user's spec said 0/1; this is the same thing in a form that transports.
+
+**Where it stands: undecided, honestly.** Opus 5/5, gemini-3.7-flash 5/5, gemini-3.8-flash 4/5 — on
+one page of five problems, which is noise, not a ranking. Latency isn't rankable either: the same
+model took 11s on one run and 68s on the next. The one real signal is that all three can read this
+handwriting, and that 3.8-flash disagreed on the crossed-out digit in №3 (`y = 5` vs `y = 7`) —
+exactly the ambiguity `read_ok = false` exists for.

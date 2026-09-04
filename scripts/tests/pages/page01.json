@@ -1,0 +1,32 @@
+{
+  "image": "page01.jpg",
+  "note": "Ground truth confirmed with the user 2026-09-04. Prose in `student_answer` (a drawing) is scored by similarity, not equivalence.",
+  "problems": [
+    {
+      "label": "1",
+      "statement": "(2(x+7))^2 = 81",
+      "student_answer": "-2,5"
+    },
+    {
+      "label": "2",
+      "statement": "|4(x+2)| = 82",
+      "student_answer": "{19, -23}"
+    },
+    {
+      "label": "3",
+      "statement": "x+7 = y+8; x = y+1",
+      "student_answer": "x = 6, y = 7"
+    },
+    {
+      "label": "4",
+      "statement": "y = x+2",
+      "student_answer": "a drawn graph (any sensible description counts)",
+      "prose": true
+    },
+    {
+      "label": "5",
+      "statement": "2^(x^x) = 2^27",
+      "student_answer": "±3"
+    }
+  ]
+}

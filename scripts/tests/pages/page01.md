@@ -9,7 +9,7 @@ Five problems. №3 and №5 confirmed by the user 2026-09-04.
 | 2 | `\|4(x+2)\| = 82` | `{19, -23}` | `{18,5; -22,5}` | **differ** | `x+2 = ±21` — 82/4 is 20,5, not 21 |
 | 3 | `x+7 = y+8` / `x = y+1` | `x = 6, y = 7` (a digit crossed out) | **infinitely many** | **uncomparable** → review | Both equations reduce to `x = y+1`, so the system is degenerate. A specific pair isn't the answer — and `(6, 7)` doesn't even satisfy `x = y+1` |
 | 4 | `y = x+2` | a **drawn graph** | — | **uncomparable** | Must route to `review`. Never fail the kid |
-| 5 | `2^(x^x) = 2^27` | `x = ±3` | `3` | **differ** | `x = √27` — treated `x^x` as `x²`. It's `x^x = 27`, so `x = 3` by inspection (3³ = 27). Their `3` is right; the `-3` is an extraneous root. ⚠️ is that line `√27` or `∛27`? Changes which line is the first divergence |
+| 5 | `2^(x^x) = 2^27` | `x = ±3` | `3` | **differ** | `x = √27` — treated `x^x` as `x²`. It's `x^x = 27`, so `x = 3` by inspection (3³ = 27). Their `3` is right; the `-3` is an extraneous root. The `√27` line is the first divergence (confirmed) |
 
 ## What this page taught us
 

@@ -168,7 +168,7 @@ Table `mathcheck_problems` — one row per problem found on a photo:
 | `student_answer` | as read, or as corrected by the user |
 | `answer_source` | `read` or `user_confirmed` — a corrected answer is never re-read or second-guessed |
 | `correct_answer` | NULL until `solve` fills it |
-| `read_ok` | 0/1 from `read_page`. Gate 1 for asking the user |
+| `read_ok` | bool from `read_page` (a bool, not 0/1 — see `learnings.md`). Gate 1 for asking the user |
 | `uncertain_field` | `statement` or `answer`, set when `read_ok = 0`, so the question is specific |
 | `status` | `pending / solved / cleared / disputed / awaiting_user / diagnosed / exonerated` |
 
