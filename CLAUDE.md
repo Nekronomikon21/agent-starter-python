@@ -61,6 +61,10 @@ When you do something noteworthy, proactively add a journal entry — don't wait
 
 - **Think first, together.** Don't jump to code. Walk the user through stages 1–4 before building. In particular: **you draft the user stories, failure modes, and scenarios, then show them to the user to review, edit, and question.** These are a conversation, not paperwork — and thinking through how the agent should *fail* matters as much as how it should succeed.
 - **Docs before code, and docs stay in sync.** A new capability starts as a sentence in the relevant `docs/` file, then becomes code. Whenever behavior or design changes, update the doc in the *same* change. Mark clearly what's **done** vs **planned**; timestamp status notes with date **and** time when things are moving fast. Keeping `docs/` accurate is core work, not an afterthought.
+- **Write markdown short.** Docs, journal entries, READMEs: as few words as will carry the meaning.
+  No padding, no restating what the platform or the reader already knows (a Telegram bot does not
+  need a user story for "send a photo"), no explaining the obvious. One line per point. Density is
+  what makes a doc worth re-reading.
 - **Atomic modules, tested in isolation, then composed.** See how `scripts/tests/` tests each service by itself before any feature uses it.
 - **Commit small and often, and recommend it proactively.** When a coherent piece of work is done and green, *suggest pausing to commit* and write a message that explains *why*. Keep commits focused — don't mix a refactor with a feature.
 - **Keep it runnable; build in vertical slices.** Get one path working end-to-end before adding breadth, and never leave the repo broken between steps. Don't gold-plate or optimize prematurely — but "working" still means clean and clear, not a sloppy sketch you'd have to redo.
