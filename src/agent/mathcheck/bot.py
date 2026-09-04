@@ -141,6 +141,16 @@ async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 
         second = message_2(result)
         await message.reply_text(second or "Nothing else to flag.", reply_markup=_fix_keyboard())
+    except Exception as exc:
+        # Never leave the chat silent. Without this, a failure anywhere in the
+        # page shows the user a progress note and then nothing, ever — which is
+        # exactly the "it froze" complaint, arriving by a different route.
+        logger.opt(exception=exc).error("checking the page failed")
+        await message.reply_text(
+            "Something went wrong on my side and I couldn't finish checking that page. "
+            "Send it again and I'll retry."
+        )
+        return
     finally:
         typing.cancel()
 

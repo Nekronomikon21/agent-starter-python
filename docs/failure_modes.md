@@ -40,6 +40,9 @@ This is why `review` may exonerate. Told only to "find the mistake", it invents 
 | Valid alternative method marked wrong | med | Judge the answer, not the road to it |
 | **An unanswered problem called wrong** — `x = ?`, blank, working that stops partway | high | `compare` can't parse it, the row disputes, and `review` asked for the mistake invents one. `answer_kind = missing` *and* a deterministic blank check route it to `unanswered` |
 | **A drawn answer reviewed as if it were working** | high | `solve` has nothing to solve and `review` invents a critique of the sketch — it did, on page01 №4. `answer_kind = drawing` skips both: say we can't check a drawing |
+| **A row with no statement** — a crop that cut the question off, a continuation sheet | high | `solve("")` sends the model an empty prompt; every provider 400s. Guarded in code, alongside the answer-side checks, and routed to `unreadable` |
+| **One row's provider error losing the whole page** | high | A bare `gather` propagates, so one 400 killed all five rows and the chat went silent after the progress note. Failures are contained per row: solve → hand to `review`, review → `failed` |
+| **The bot going silent on an unhandled error** | high | The user sees "Got it — 5 problems" and then nothing, ever, which is indistinguishable from a crash. `on_photo` catches, says so plainly, and invites a retry |
 | Every downstream line flagged, not just the first | med | First divergence only |
 | Message 1 lands before review verifies | high | It reports, never judges |
 | Review exonerates a row message 1 flagged | med | Retract explicitly; `exonerated` is a state |

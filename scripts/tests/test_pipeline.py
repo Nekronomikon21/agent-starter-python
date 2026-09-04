@@ -16,7 +16,7 @@ os.environ.setdefault("OPENROUTER_API_KEY", "test-key-not-real")
 
 from agent.mathcheck import pipeline as pl  # noqa: E402
 from agent.mathcheck.models import Problem  # noqa: E402
-from agent.mathcheck.review import Review  # noqa: E402
+from agent.mathcheck.review import Review, Verdict  # noqa: E402
 
 IMAGE = b"not-really-a-jpeg"
 
@@ -34,10 +34,12 @@ def problem(label: str, statement: str, answer: str, read_ok: bool = True) -> Pr
 class Fakes:
     """Stand-ins for the three models, with counters."""
 
-    def __init__(self, problems: list[Problem], answers: dict[str, str], verdict: str = "mistake"):
+    def __init__(
+        self, problems: list[Problem], answers: dict[str, str], verdict: Verdict = "mistake"
+    ):
         self.problems = problems
         self.answers = answers  # label -> what `solve` returns
-        self.verdict = verdict
+        self.verdict: Verdict = verdict
         self.review_started: list[str] = []
         self.review_finished: list[str] = []
 
@@ -419,3 +421,104 @@ async def test_on_read_fires_before_any_solving(monkeypatch: pytest.MonkeyPatch)
     await pl.check_page(IMAGE, on_read=announce)
 
     assert seen == ["Got it — 2 problems. Working through them now."]
+
+
+# --- failures: one bad row must never cost the page -------------------------
+#
+# All three came from one live crash. `read_page` returned a row with a label
+# and an answer but no statement; `solve("")` sends the model an empty prompt,
+# every provider 400s, and the bare `gather` took the other four rows down with
+# it — the user saw a progress note and then silence forever.
+
+
+async def test_a_row_with_no_statement_is_never_sent_to_a_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    problems = [problem("1", "a", "17"), problem("2", "   ", "9")]
+    solved: list[str] = []
+    reviewed: list[str] = []
+
+    async def fake_read_page(image, *, media_type="image/jpeg", model=""):  # noqa: ANN001
+        return problems
+
+    async def fake_solve(statement, *, model=""):  # noqa: ANN001
+        solved.append(statement)
+        return "17"
+
+    async def fake_review(image, statement, *, label=None, media_type="", model=""):  # noqa: ANN001
+        reviewed.append(label or "?")
+        return Review(verdict="mistake", line="line 2", why="the rule")
+
+    monkeypatch.setattr(pl, "read_page", fake_read_page)
+    monkeypatch.setattr(pl, "solve", fake_solve)
+    monkeypatch.setattr(pl, "review", fake_review)
+
+    result = await pl.check_page(IMAGE)
+
+    assert result.rows[1].status == "unreadable"
+    assert solved == ["a"]  # the empty statement never reached the model
+    assert "2" not in reviewed  # nor the expensive pass
+    assert result.rows[0].status == "cleared"  # and the good row still cleared
+
+
+async def test_a_solve_failure_hands_the_row_to_review(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No second opinion is not the same as no check: `review` never needed ours."""
+    problems = [problem("1", "a", "17"), problem("2", "b", "9")]
+    fakes = Fakes(problems, {"1": "17", "2": "9"})
+    fakes.install(monkeypatch)
+
+    async def failing_solve(statement, *, model=""):  # noqa: ANN001
+        if statement == "b":
+            raise RuntimeError("provider returned 400")
+        return "17"
+
+    monkeypatch.setattr(pl, "solve", failing_solve)
+
+    result = await pl.check_page(IMAGE)
+
+    assert result.rows[0].status == "cleared"
+    assert result.rows[1].status == "diagnosed"  # review still judged it
+    assert result.rows[1].correct_answer is None  # and we claim no answer of our own
+
+
+async def test_a_review_failure_costs_one_row_not_the_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    problems = [problem("1", "a", "17"), problem("2", "b", "9")]
+    fakes = Fakes(problems, {"1": "17", "2": "17"})
+    fakes.install(monkeypatch)
+
+    async def failing_review(image, statement, *, label=None, media_type="", model=""):  # noqa: ANN001
+        raise RuntimeError("provider timed out")
+
+    monkeypatch.setattr(pl, "review", failing_review)
+
+    result = await pl.check_page(IMAGE)
+
+    assert result.rows[0].status == "cleared"
+    assert result.rows[1].status == "failed"
+
+
+async def _raising_review(image, statement, *, label=None, media_type="", model=""):  # noqa: ANN001
+    raise RuntimeError("provider timed out")
+
+
+async def test_the_two_new_states_own_the_failure_instead_of_blaming_the_student(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Neither may borrow the drawing wording: our 400 is not their sketch."""
+    from agent.mathcheck.respond import message_2
+
+    problems = [problem("1", "  ", "17"), problem("2", "b", "9")]
+    fakes = Fakes(problems, {"2": "17"})
+    fakes.install(monkeypatch)
+    monkeypatch.setattr(pl, "review", _raising_review)
+
+    result = await pl.check_page(IMAGE)
+    text = message_2(result) or ""
+
+    assert result.rows[0].status == "unreadable"
+    assert result.rows[1].status == "failed"
+    assert "drawing" not in text
+    assert "my side" in text  # we own it
+    assert "send" in text.lower()  # and say what to do next

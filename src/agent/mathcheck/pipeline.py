@@ -17,6 +17,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Literal
 
+from loguru import logger
+
 from agent.mathcheck.compare import compare
 from agent.mathcheck.models import Problem
 from agent.mathcheck.read_page import read_page
@@ -33,6 +35,8 @@ Status = Literal[
     "wrong_problem",
     "uncheckable",
     "unanswered",
+    "unreadable",
+    "failed",
 ]
 
 
@@ -48,6 +52,18 @@ _OUTCOME: dict[str, Status] = {
 # well as asked of the model, because a missed flag here means `review` is sent
 # to find the mistake in unfinished working — and it will find one.
 _NOT_AN_ANSWER = set("?-—–.…") | {" ", chr(9), chr(10)}
+
+
+def _has_no_statement(statement: str) -> bool:
+    """No question text: there is nothing to solve and nothing to check against.
+
+    `read_page` can return a row with a label and an answer but no question — a
+    continuation sheet, or a crop that cut the wording off. Handing that to
+    `solve` sends the model an empty prompt, which every provider rejects with a
+    400. Every other guard here watches the *answer*; this one watches the
+    statement, and its absence is what took a whole page down.
+    """
+    return not statement.strip()
 
 
 def _looks_unanswered(answer: str) -> bool:
@@ -98,7 +114,16 @@ class PageResult:
 
 async def _solve_row(row: Row, changed: asyncio.Event) -> None:
     """Fast pass: re-derive, compare, settle or dispute. Never sees their work."""
-    row.correct_answer = await solve(row.problem.statement)
+    try:
+        row.correct_answer = await solve(row.problem.statement)
+    except Exception as exc:
+        # We simply have no second opinion for this row. `review` reads the photo
+        # directly and never needed our answer, so hand the row to it rather than
+        # dropping it — a degraded check beats a lost page.
+        logger.opt(exception=exc).warning("solve failed for {}", row.label)
+        row.status = "disputed"
+        changed.set()
+        return
     if compare(row.problem.student_answer, row.correct_answer) == "agree":
         row.status = "cleared"
         row.settled.set()  # drops any review already running on this row
@@ -147,7 +172,14 @@ async def _review_worker(
             cleared.cancel()
             if row.status == "cleared":
                 continue  # it landed just after the row settled; throw it away
-            row.verdict = running.result()
+            try:
+                row.verdict = running.result()
+            except Exception as exc:
+                # Review is the only pass that can produce a verdict, so we cannot
+                # judge this row at all. Say so, and keep walking the page.
+                logger.opt(exception=exc).warning("review failed for {}", row.label)
+                row.status = "failed"
+                continue
             row.status = _OUTCOME[row.verdict.verdict]
         else:
             running.cancel()  # speculative work on a row that turned out fine
@@ -171,7 +203,10 @@ async def check_page(
     # A drawn answer has nothing to compare and nothing to walk. Solving it wastes
     # a call, and handing it to `review` produces a confident critique of a sketch.
     for row in rows:
-        if row.problem.answer_kind == "drawing":
+        if _has_no_statement(row.problem.statement):
+            row.status = "unreadable"
+            row.settled.set()
+        elif row.problem.answer_kind == "drawing":
             row.status = "uncheckable"
             row.settled.set()
         elif row.problem.answer_kind == "missing" or _looks_unanswered(row.problem.student_answer):
@@ -194,17 +229,26 @@ async def check_page(
     changed = asyncio.Event()
     reviewing = asyncio.create_task(_review_worker(image, media_type, rows, changed))
     try:
-        await asyncio.gather(*(_solve_row(row, changed) for row in checkable))
+        # `_solve_row` swallows its own failures; `return_exceptions` is the belt
+        # to that brace, so an unforeseen one still cannot cost us the whole page.
+        await asyncio.gather(
+            *(_solve_row(row, changed) for row in checkable), return_exceptions=True
+        )
         changed.set()
         if on_fast_pass is not None:
             await on_fast_pass(result)
-        await reviewing
+        try:
+            await reviewing
+        except Exception as exc:
+            logger.opt(exception=exc).error("review pass died; rows left unjudged")
     finally:
         reviewing.cancel()
 
     for row in rows:
         if row.needs_user:
             row.status = "awaiting_user"
+        elif row.status in ("pending", "disputed"):
+            row.status = "failed"  # the review pass never reached it
     return result
 
 

@@ -84,8 +84,17 @@ shaky reading that still agreed needs no question.
 ## Row states
 
 `pending` → `cleared`, or `disputed` → `awaiting_user` / `diagnosed` / `exonerated` /
-`wrong_problem`. A drawn answer goes straight to `uncheckable`, an unanswered one to `unanswered` — neither is ever solved or reviewed.
+`wrong_problem`. A drawn answer goes straight to `uncheckable`, an unanswered one to `unanswered`,
+a row with no question text to `unreadable` — none is ever solved or reviewed.
 A user correction returns any row to `solved` for a fresh `compare`.
+
+`failed` is the one state we own rather than describe: a model call for that row errored, so we
+cannot judge it. It is deliberately not `uncheckable` — telling a student their answer is a drawing
+when our own request 400'd is a lie about whose fault it is.
+
+**A failure is always one row wide.** `solve` failing hands the row to `review`, which reads the
+photo and never needed our answer; `review` failing marks that row `failed` and the worker keeps
+walking the page. One provider error must never cost the other four rows.
 
 `exonerated` exists so a retraction is a state the system owes, not a message we hope got sent.
 
@@ -102,6 +111,7 @@ A user correction returns any row to `solved` for a fresh `compare`.
 | `answer_source` | `read` or `user_confirmed` |
 | `correct_answer` | NULL until `solve` fills it. **Not always numeric** — "infinitely many solutions" is an answer |
 | `answer_kind` | `value` / `words` / `drawing` / `missing`. A drawing or an unanswered problem skips the whole pipeline |
+| `statement` empty | not a column — a guard. No question text means nothing to solve *and* nothing to check working against |
 | `read_ok` | bool from `read_page`. Gate 1 for asking the user |
 | `uncertain_field` | `statement` or `answer`, set when `read_ok` is false |
 | `status` | see row states |

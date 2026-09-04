@@ -52,6 +52,16 @@ def message_1(result: PageResult) -> str:
 def _diagnosis(row: Row) -> str:
     if row.status == "unanswered":
         return f"{row.label} — you haven't answered this one yet. Want me to talk you through it?"
+    if row.status == "unreadable":
+        return (
+            f"{row.label} — I couldn't make out the question itself, so I can't check your "
+            "working on it. Can you send me that one again?"
+        )
+    if row.status == "failed":
+        return (
+            f"{row.label} — something went wrong on my side and I couldn't finish checking "
+            "this one. Send the page again and I'll retry it."
+        )
     if row.status == "uncheckable":
         return (
             f"{row.label} — your answer is a drawing, and I can't check one yet. "

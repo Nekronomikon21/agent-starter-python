@@ -671,3 +671,43 @@ never is. It also correctly keeps `0` as a real answer, which a sloppier blank t
 The user found both of these in about ten minutes of real use. Every one of the last four defects —
 the LaTeX, the drawing, the freeze, the blank — came from running the thing, not from reading the
 docs. 100 offline tests now, and none of them would have caught any of the four.
+
+## 2026-09-04 19:34 — A row with no question took the whole page down, silently
+Started the bot to test it; the queued photo from earlier crashed it inside a minute. Three separate
+defects, one trigger, and the first one is a family I now recognise on sight.
+
+**`read_page` returned a row with a label and an answer but no statement.** `solve("")` sends the
+model an empty prompt, which every provider behind OpenRouter rejects with `400 messages: at least
+one message is required` — five of them in the error body, all five refusing the same way.
+Reproduced it directly to be sure rather than reading it off the traceback.
+
+**This is the fourth member of the same family**, and the first on the other side of the row. The
+guards I added for the drawing, the blank and the `missing` flag all watch the *answer*. Nothing
+watched the *statement*. `uncomparable` was never one thing; neither, it turns out, is "a row we can
+check" — it needs a question as much as it needs an answer.
+
+**The blast radius was the worse bug.** `asyncio.gather` without `return_exceptions` propagates, so
+one bad row killed all five, and `on_photo` had no `except` — the user saw "Got it — 5 problems" and
+then nothing, ever. That is the *same* frozen-chat complaint from this morning arriving by a new
+route: the typing keep-alive fixed the symptom for slow work, not for dead work. An ack is a promise,
+and nothing was keeping it. Any transient 429 would have done this too; the empty statement just got
+there first.
+
+Contained failure per row now: `solve` failing hands the row to `review` (which reads the photo and
+never needed our answer — a degraded check beats a lost page), `review` failing marks that one row
+and the worker keeps walking.
+
+**`failed` is a separate state from `uncheckable`, deliberately.** Saying "your answer is a drawing"
+because our own request errored is a lie about whose fault it is. Same for `unreadable` vs the
+drawing wording. Every bug this session came from collapsing two cases into one state; I'm not going
+to fix this one by doing it again.
+
+Four tests on the new paths, and one of them asserts the wording *doesn't* say "drawing" — the
+failure I'd actually ship by accident.
+
+Also: `pyright` was already failing on `main` before I touched anything (an untyped fake verdict in
+`test_pipeline.py`). The definition of done says clean, so it's clean now.
+
+**And the thing that isn't code:** the disk was 100% full — 0 bytes — when I started, which is why
+nothing could run. Also `main` is six commits ahead of `origin` and the repo is public, so all of
+this work exists on exactly one machine.
