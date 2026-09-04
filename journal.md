@@ -420,3 +420,25 @@ same line, so it has infinitely many solutions). Logged as ⚠️ for the user t
 
 **Still blocked on the set that matters most:** this page has no fully correct solution, so the
 false-accusation set is still empty. That's the one where a single failure blocks release.
+
+## 2026-09-04 16:55 — page01 confirmed: a category the design missed
+User confirmed №3 (degenerate system, infinitely many solutions) and №5 (`2^(x^x) = 2^27`, so
+`x^x = 27` and `x = 3` — not `x² = 27` as I first read it).
+
+**№3 exposes a category no doc had:** the correct answer is a **statement** — "infinitely many
+solutions" — not a value. Same family as "no solution" and "any x". `compare` returns `uncomparable`
+and routes to `review`, which is right, but two things follow that the architecture assumed away:
+`correct_answer` is not always numeric, so `solve` must be able to *say* such an answer; and these
+rows can never be cleared by `compare`, so they **always** cost a review call. The cheap path has a
+hole in it that only a real page revealed.
+
+**№5 breaks the "school maths is easy to solve" assumption.** `x^x = 27` has no elementary solution —
+sympy won't get it, and the model has to see that 3³ = 27. Worth remembering when picking the `solve`
+tier: the ceiling isn't set by the average problem.
+
+It's also a nicer test than I credited: the student's `±3` contains the right value *plus* an
+extraneous root, and their error is at `x = √27` (treating `x^x` as `x²`) — so the answer is
+partially right, which is a third distinct diagnosis shape after "lost a root" (№1) and "arithmetic
+slip" (№2). One page, three shapes; I'd not have invented any of them at a desk.
+
+70 tests. Still no fully-correct page, so the false-accusation set is still empty.

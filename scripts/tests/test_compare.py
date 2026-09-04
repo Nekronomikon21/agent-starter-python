@@ -68,8 +68,10 @@ DIFFERENT = [
     ("x = -2,5", "{-2,5; -11,5}"),
     # page01 №2: divided 82 by 4 as 21, not 20.5.
     ("{19, -23}", "{18.5, -22.5}"),
-    # page01 №5: sqrt(27) is 3*sqrt(3), not 3.
-    ("±3", "{3*sqrt(3), -3*sqrt(3)}"),
+    # page01 №5: 2^(x^x) = 2^27 means x^x = 27, so x = 3. "±3" carries an
+    # extraneous root -- right value, wrong answer.
+    ("±3", "3"),
+    ("x = ±3", "3"),
 ]
 
 UNREADABLE = [
@@ -81,6 +83,11 @@ UNREADABLE = [
     # page01 №4: answered with a drawn graph. Must route to review, never fail.
     ("график", "y = x + 2"),
     ("прямая через начало координат", "y = x"),
+    # page01 №3: the correct answer is a *statement*, not a value. Same family
+    # as "no solution" / "any x". Always routes to review; never fails the kid.
+    ("x = 6, y = 7", "infinitely many solutions"),
+    ("бесконечно много решений", "x = y + 1"),
+    ("no solution", "3"),
 ]
 
 
