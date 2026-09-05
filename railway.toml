@@ -1,9 +1,13 @@
-# Deploy config for THIS deployment (the agent_idea_web demo).
-# The Dockerfile's default command runs src/agent/web.py; this overrides it to run
-# the Agent Idea Generator web app instead.
+# Deploy config for THIS repo's system: the maths-homework checker bot.
+# One clone = one agent (CLAUDE.md), and this clone's agent is mathcheck. The
+# agent_idea_web demo that used to be deployed here is still runnable locally:
+#   uv run fastapi dev examples/agent_idea_web/app.py
+#
+# `app.py` hosts the Telegram webhook. Locally the bot long-polls instead
+# (`uv run mathcheck-bot`) — with a DIFFERENT token, or Telegram 409s.
 #
 # NOTE: Railway runs startCommand WITHOUT a shell, so "$PORT" would NOT expand.
 # We don't pass --port at all — `fastapi run` reads the PORT env var that Railway
 # injects, and already defaults --host to 0.0.0.0.
 [deploy]
-startCommand = "fastapi run examples/agent_idea_web/app.py"
+startCommand = "fastapi run src/agent/mathcheck/app.py"
