@@ -24,6 +24,8 @@ once when the review lands.
 | `correct` | let the user fix a misread afterwards | label + typed answer or new photo → updated row |
 | `respond` | settled rows → chat messages | rows → message 1, message 2 |
 | `bot` | Telegram wiring only | update → handler → the modules above |
+| `store` | the last page per user | `mathcheck_sessions`, so a correction outlives a restart |
+| `app` | production entrypoint | FastAPI + webhook; local runs poll instead |
 
 `solve` and `review` are the two independent models, independent by **method**: one re-derives from
 scratch, the other verifies a given derivation.

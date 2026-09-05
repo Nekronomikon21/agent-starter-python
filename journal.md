@@ -829,3 +829,40 @@ through real Postgres — because "it serialises" and "it round-trips through JS
 claims.
 
 Next: the webhook server and Railway. The token is a @BotFather job and not mine to do.
+
+## 2026-09-05 15:10 — The webhook, and one deliberate departure from our own worked example
+`app.py` is the production entrypoint: FastAPI hosting the Telegram webhook, the same handlers as
+the local poller, the switch driven entirely by whether `PUBLIC_URL` is set.
+
+**Two things I verified in PTB's source rather than trusting the pattern.**
+
+`Application.initialize()` does *not* run `post_init`, and `.shutdown()` does *not* run
+`post_shutdown` — their own docstrings say so, and only `run_polling`/`run_webhook` call them.
+Driving the Application by hand from a FastAPI lifespan means calling both myself. Forget it and the
+migrations never run in production, which is the one place the table has to exist. The
+inspiration_bot already had this comment; I confirmed it still holds rather than copying it on faith.
+
+**The departure: we queue the update instead of awaiting it.** `examples/inspiration_bot/app.py`
+does `await ptb.process_update(update)`, which is right for a bot that answers in milliseconds. Ours
+takes about forty seconds. Awaiting would hold Telegram's connection until it times out and
+**re-delivers the same update** — two answers and two Opus reviews for one photo — and it would
+bypass `MAX_CONCURRENT_PAGES`, because the cap lives on the queue path (`start()` runs a fetcher over
+`update_queue` that goes through the update processor; a direct `process_update` call doesn't).
+So: `await ptb.update_queue.put(update)`, return `{"ok": True}` immediately. Same three lines,
+completely different failure behaviour.
+
+Copying a worked example is right up until the property it relied on stops being true. Here it was
+"handlers are fast", and ours aren't.
+
+**Booted it locally and curled it**, which is worth more than the unit tests: health `200`, missing
+secret `403`, wrong secret `403`, correct secret `200 {"ok":true}` and instant. Migrations ran on
+boot; no webhook registered without `PUBLIC_URL`, as intended.
+
+One Windows-only papercut on the way: `fastapi run` crashes printing its own 🚀 banner to a cp1252
+console. Not our code and not reachable on Railway (Linux, UTF-8); `PYTHONIOENCODING=utf-8` fixes it
+locally.
+
+**Blocked on two things only the user can do:** a second @BotFather token (one token cannot serve a
+local poller and a deployed webhook — that's a guaranteed 409), and whether the running
+`Agent_idea_web` service gets replaced or joined by a second one. Not my call: it's their deployment
+and their Railway bill.

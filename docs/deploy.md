@@ -55,6 +55,27 @@ startCommand = "fastapi run path/to/app.py"   # a web app
 (This repo's `railway.toml` is set to run the `examples/agent_idea_web` demo — change it to
 your own app, or delete it to use the Dockerfile default.)
 
+## This project (mathcheck): what deploying it actually needs
+
+`src/agent/mathcheck/app.py` is the production entrypoint —
+`startCommand = "fastapi run src/agent/mathcheck/app.py"`. No cron: nothing here is scheduled.
+
+Variables: `ENVIRONMENT=production`, a **prod** `TELEGRAM_BOT_TOKEN`, `DATABASE_URL`,
+`OPENROUTER_API_KEY`, `TELEGRAM_WEBHOOK_SECRET`, `ALLOWED_TELEGRAM_IDS`, then `PUBLIC_URL` once
+`railway domain` has given you one. No `FAL_KEY` and no `R2_*` — this project uses neither.
+
+Three things specific to this bot:
+
+- **`ALLOWED_TELEGRAM_IDS` must not be empty in production.** Every photo is a page read, a solve
+  per row and an Opus review, all on your key. The allowlist is the only thing between a stranger
+  and the bill; the bot logs a warning at startup if it's open.
+- **Updates are queued, not awaited.** Checking a page takes ~40s. Holding Telegram's connection
+  that long gets the update re-delivered on timeout — two answers, two bills — so the webhook puts
+  it on PTB's queue and returns immediately. That also preserves `MAX_CONCURRENT_PAGES`.
+- **`post_init` runs the migrations, and FastAPI must call it by hand.** `Application.initialize()`
+  does *not* run it — only `run_polling`/`run_webhook` do (PTB's own docstring says so). `app.py`
+  calls it explicitly; drop that line and the table never exists in production.
+
 ## Deploying a Telegram bot (webhook + cron + environments)
 
 Worked example: `examples/inspiration_bot`. Locally a bot uses **long polling** (no public
