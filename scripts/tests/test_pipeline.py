@@ -333,6 +333,69 @@ async def test_a_correction_that_still_differs_gets_reviewed(
     assert fakes.review_finished == ["2"]
 
 
+async def test_a_wrong_correction_is_never_called_right(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bug a live user found: they corrected to a wrong answer and were told it was right.
+
+    `review` is blind to the answer by design, so a `valid` verdict vouches for
+    the working on the page and nothing else. It may not license calling an
+    answer right that it never saw.
+    """
+    from agent.mathcheck.pipeline import apply_correction
+    from agent.mathcheck.respond import correction_reply
+
+    fakes = Fakes([problem("2", "b", "1", read_ok=False)], {"2": "17"}, verdict="valid")
+    fakes.install(monkeypatch)
+    result = await pl.check_page(IMAGE)
+    row = result.rows[0]
+
+    await apply_correction(row, "999", IMAGE)
+    text = correction_reply(row)
+
+    assert row.status != "exonerated"
+    assert "999 is still not right" in text
+    assert "is right" not in text
+    assert "The answer is 17." in text  # and we say what it actually is
+
+
+async def test_a_wrong_correction_still_points_at_the_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Review keeps its real job: locating the mistake, just not overturning the verdict."""
+    from agent.mathcheck.pipeline import apply_correction
+    from agent.mathcheck.respond import correction_reply
+
+    fakes = Fakes([problem("2", "b", "1", read_ok=False)], {"2": "17"})
+    fakes.install(monkeypatch)
+    result = await pl.check_page(IMAGE)
+    row = result.rows[0]
+
+    await apply_correction(row, "999", IMAGE)
+    text = correction_reply(row)
+
+    assert row.status == "diagnosed"
+    assert "still not right" in text
+    assert "line 2" in text and "the rule" in text
+
+
+def test_review_may_only_exonerate_an_answer_it_actually_saw() -> None:
+    """Defence in depth: the guard lives in the wording, not only in the caller."""
+    from agent.mathcheck.respond import message_2
+
+    row = pl.Row(
+        problem=problem("2", "b", "999"),
+        correct_answer="17",
+        answer_source="user_confirmed",
+        status="exonerated",
+        verdict=Review(verdict="valid"),
+    )
+    text = message_2(pl.PageResult(rows=[row])) or ""
+
+    assert "999 is still not right" in text
+    assert "is right" not in text
+
+
 async def test_correcting_a_drawing_solves_it_first(monkeypatch: pytest.MonkeyPatch) -> None:
     """A drawn row was never solved, so a correction has nothing to compare against."""
     from agent.mathcheck.pipeline import apply_correction

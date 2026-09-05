@@ -201,10 +201,23 @@ async def on_text(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(HELLO)
         return
 
-    await update.message.chat.send_action(ChatAction.TYPING)
-    await apply_correction(
-        row, update.message.text or "", session.image, media_type=session.media_type
-    )
+    # A correction runs solve and review too, so it can take half a minute. One
+    # `send_action` lasts about five seconds; the silence after it reads as a crash
+    # exactly the way the photo path used to.
+    typing = asyncio.create_task(_keep_typing(update.message.chat))
+    try:
+        await apply_correction(
+            row, update.message.text or "", session.image, media_type=session.media_type
+        )
+    except Exception as exc:
+        logger.opt(exception=exc).error("applying the correction failed")
+        await update.message.reply_text(
+            "Something went wrong on my side and I couldn't recheck that one. "
+            "Send the page again and I'll retry."
+        )
+        return
+    finally:
+        typing.cancel()
     await update.message.reply_text(correction_reply(row), reply_markup=_fix_keyboard())
 
 

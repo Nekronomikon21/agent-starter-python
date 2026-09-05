@@ -106,6 +106,17 @@ Type it, or send a clearer photo."* Then:
 
 > With 11/12 for 3b — that's right, my mistake.
 
+**If the corrected answer still differs from ours, it is still wrong.** Their word is authoritative
+about what they *wrote*, never about whether it is right — our answer came from the statement alone.
+`review` is called only to locate the line to point at; it never overturns the verdict, because it
+never saw the answer they just typed.
+
+> №2 — 999 is still not right, I'm afraid. It goes wrong at x+2 = ±21: to undo the 4 you divide 82
+> by 4. The answer is {18.5, -22.5}.
+
+The one exception is `wrong_problem`: if their working isn't for the question we read, our answer is
+to a different problem and has no standing to judge theirs.
+
 ## Rules
 
 The hard rules live in `failure_modes.md` — that doc owns them. Two wording-level additions:

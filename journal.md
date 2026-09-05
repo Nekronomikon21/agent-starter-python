@@ -711,3 +711,48 @@ Also: `pyright` was already failing on `main` before I touched anything (an unty
 **And the thing that isn't code:** the disk was 100% full — 0 bytes — when I started, which is why
 nothing could run. Also `main` is six commits ahead of `origin` and the repo is public, so all of
 this work exists on exactly one machine.
+
+## 2026-09-05 13:27 — Two user reports: a 35s silence, and a wrong answer called right
+Both from real use, both worth more than the tests that missed them.
+
+**"The gap before the next message is too big."** I assumed this was a reporting problem and went
+looking for a way to announce the problem count sooner. It isn't: `read_page` takes **35 seconds**.
+Measured before designing anything, which is the only reason I didn't build a clever workaround for
+a number that shouldn't exist.
+
+`learnings.md` already had a bake-off saying 3.7-flash was faster *and* scored 5/5 to 3.8's 4/5 —
+and it also said **"latency is not yet rankable"**, because the same model had run 11s once and 68s
+the next time. That caution was correct at n=1. Two more runs each makes it n=3, and the ranges
+don't overlap: 3.8 at 68.7 / 36.8 / 34.8, 3.7 at 15.8 / 15.2 / 13.3. Switched to 3.7-flash.
+
+The thing I'd have got wrong by reasoning: **an early "count the problems" call is not available.**
+flash-lite is the only model quick enough to front-run the real read, and it returned **six problems
+for a five-problem page** and flagged nothing ambiguous. A fast wrong count arriving first is worse
+than a slow right one. The prior bake-off's one point for 3.8 — it read №3's crossed-out digit
+correctly — survives, but both models flag that row `read_ok = false`, so the ask-the-user gate
+catches it either way. The safety net is what makes the cheaper choice safe.
+
+**"When I corrected my answer and gave the wrong one, the bot said it was right."** Reproduced
+offline in a dozen lines: our answer `{18.5, -22.5}`, their claim `999`, and the bot replied
+*"Actually, your 999 for №2 is right — my first pass had it wrong."*
+
+The mechanism is a contract mismatch I built myself. `review` is deliberately blind to any expected
+answer — its own docstring says being handed one would hand it its conclusion. So `valid` means
+**"this working is sound"**, never "their answer is right". But `_diagnosis` translated `valid`
+straight into *"your {student_answer} is right"* — and after a correction that string is something
+the *user typed*, which review never saw. An answer endorsed by a check that never looked at it.
+
+The user's rule, and it's better than the three options I drafted: **if the corrected answer still
+differs, it's still wrong, and remind them of the wrong line.** That puts authority where the
+evidence is — `compare` against an answer we derived from the statement alone decides right and
+wrong; `review` only locates the line. One exception kept: `wrong_problem`, where our answer is to a
+different question and has no standing.
+
+I'd been circling a weaker "I can't reconcile these" message. Theirs is right because the asymmetry
+is real: we solved the problem independently, they asserted a string. Those are not two opinions.
+
+**Third thing, unreported:** the correction path had no typing keep-alive — one `send_action`, then
+solve and review for up to half a minute. The same frozen chat we fixed yesterday, on the path
+nobody had walked yet. Fixed, with the same `except` treatment so a failure there speaks too.
+
+Every defect this project has had now came from someone using it. None came from the docs.

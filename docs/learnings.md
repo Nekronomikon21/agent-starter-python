@@ -88,6 +88,29 @@ Run it with `uv run python scripts/bakeoff.py --show`.
 - **One page can't decide this.** All three are ≥ 4/5 on five problems. Undecided until there are
   more pages, especially correct ones.
 
+### `read_page` model decided — 3.7-flash, 2026-09-05
+
+Two more runs, prompted by a live user: *"the gap between reading the picture and the next message
+is too big."* That gap **is** `read_page`.
+
+| model | found | answers | statement | flagged | run 1 | run 2 |
+|---|---|---|---|---|---|---|
+| `google/gemini-3.7-flash` | 5/5 | 4/5 | 0.98 | 1 | 15.2 | 13.3 |
+| `google/gemini-3.8-flash` | 5/5 | 4/5 | 0.98 | 1 | 36.8 | 34.8 |
+| `google/gemini-2.5-flash-lite` | **6/5** | 4/5 | 0.73 | 0 | 3.4 | — |
+
+- **"Latency is not yet rankable" no longer holds.** True at n=1; not at n=3. Three runs each —
+  3.8: 68.7 / 36.8 / 34.8, 3.7: 15.8 / 15.2 / 13.3 — and the ranges do not come close to
+  overlapping. Consistently ~2.5× faster.
+- **Accuracy never favoured 3.8.** Tied today, lost 4/5 to 5/5 in the first run. The one thing it
+  won is №3's crossed-out digit, once — and *both* models flag that row `read_ok = false`, so the
+  ask-the-user gate catches it either way. The safety net is doing the job the safety net is for.
+- **flash-lite is disqualified, not merely worse.** It invented a sixth problem on a five-problem
+  page and flagged nothing as ambiguous. Speed is worthless in the module where 87% of errors start.
+- **So there is no cheap early problem-count call to be had**, which was the obvious way to close
+  the gap: the only model fast enough to front-run the real read is the one that miscounts.
+- Still one page. A firm latency decision resting on a thin accuracy sample.
+
 ### Vision model for `read_page` — research, 2026-09-04
 
 Source: Levine et al., *Automated Grading of Handwritten Mathematics Using Vision-Capable LLMs*

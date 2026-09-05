@@ -49,6 +49,21 @@ def message_1(result: PageResult) -> str:
     return f"Checking your working on {_listed(open_rows)} now."
 
 
+def _still_wrong(row: Row) -> str:
+    """Their answer is settled, and it still isn't ours.
+
+    `review` may hand us a line to point at, but it never overturns this. It
+    never saw the answer they just gave us, so `valid` vouches for the working
+    and nothing more (`docs/failure_modes.md`).
+    """
+    answer = _flat(row.problem.student_answer)
+    verdict = row.verdict
+    why = f" It goes wrong at {verdict.line}: {verdict.why}" if verdict and verdict.line else ""
+    ours = _flat(row.correct_answer or "")
+    tail = f" The answer is {ours}." if ours else ""
+    return f"{row.label} — {answer} is still not right, I'm afraid.{why}{tail}"
+
+
 def _diagnosis(row: Row) -> str:
     if row.status == "unanswered":
         return f"{row.label} — you haven't answered this one yet. Want me to talk you through it?"
@@ -71,10 +86,14 @@ def _diagnosis(row: Row) -> str:
     if verdict is None or verdict.verdict == "mistake" and not verdict.line:
         return f"{row.label} — I couldn't follow your working. Can you send a clearer photo?"
     if verdict.verdict == "valid":
-        return (
-            f"Actually, your {row.problem.student_answer} for {row.label} is right — "
-            "my first pass had it wrong."
-        )
+        if row.answer_source == "read":
+            return (
+                f"Actually, your {row.problem.student_answer} for {row.label} is right — "
+                "my first pass had it wrong."
+            )
+        # Review only ever looked at the page. This answer reached us afterwards,
+        # from the user, so `valid` cannot license calling it right.
+        return _still_wrong(row)
     if verdict.verdict == "wrong_problem":
         return (
             f"Your working for {row.label} doesn't match the question I read. "
@@ -108,7 +127,9 @@ def correction_reply(row: Row) -> str:
     answer = _flat(row.problem.student_answer)
     if row.status == "cleared":
         return f"With {answer} for {row.label} — that's right, my mistake."
-    return _diagnosis(row)
+    if row.status == "wrong_problem":
+        return _diagnosis(row)
+    return _still_wrong(row)
 
 
 def reading_note(result: PageResult) -> str:

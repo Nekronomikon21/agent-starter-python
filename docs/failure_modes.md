@@ -43,6 +43,7 @@ This is why `review` may exonerate. Told only to "find the mistake", it invents 
 | **A row with no statement** — a crop that cut the question off, a continuation sheet | high | `solve("")` sends the model an empty prompt; every provider 400s. Guarded in code, alongside the answer-side checks, and routed to `unreadable` |
 | **One row's provider error losing the whole page** | high | A bare `gather` propagates, so one 400 killed all five rows and the chat went silent after the progress note. Failures are contained per row: solve → hand to `review`, review → `failed` |
 | **The bot going silent on an unhandled error** | high | The user sees "Got it — 5 problems" and then nothing, ever, which is indistinguishable from a crash. `on_photo` catches, says so plainly, and invites a retry |
+| **A corrected answer endorsed without being checked** — the user types a wrong answer and is told it is right | high | `review` is blind to the answer by design, so `valid` vouches for the *working*, not for a string it never saw. Only `compare` may decide right and wrong; review only locates the line. Hit live |
 | Every downstream line flagged, not just the first | med | First divergence only |
 | Message 1 lands before review verifies | high | It reports, never judges |
 | Review exonerates a row message 1 flagged | med | Retract explicitly; `exonerated` is a state |

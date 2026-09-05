@@ -32,7 +32,14 @@ INSTRUCTIONS = (
     "the problem look complete. Guessing is worse than admitting."
 )
 
-DEFAULT_MODEL = "google/gemini-3.8-flash"
+# Measured on our own pages, not picked off a leaderboard (`scripts/bakeoff.py`).
+# 3.7-flash ties 3.8-flash on every accuracy column — problems found, labels,
+# answers, statement fidelity, and rows flagged read_ok=false — at a third of the
+# latency: 13s against 35s, twice over. That wait is the gap the user sits in
+# front of, so it is worth as much here as accuracy is.
+# flash-lite is quicker again and unusable: it invented a sixth problem on a
+# five-problem page and flagged nothing as ambiguous.
+DEFAULT_MODEL = "google/gemini-3.7-flash"
 
 
 async def read_page(

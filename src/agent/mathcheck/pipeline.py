@@ -273,7 +273,17 @@ async def apply_correction(
         row.settled.set()
         return row
 
-    row.status = "disputed"
-    row.verdict = await review(image, row.problem.statement, label=row.label, media_type=media_type)
-    row.status = _OUTCOME[row.verdict.verdict]
+    # Their word settles what they *wrote*; it does not settle whether it is
+    # right. Our answer came from the statement alone, so a difference means the
+    # answer is still wrong. `review` is called to locate the line, never to
+    # overturn that: it never saw the answer they just gave us, so a `valid`
+    # verdict vouches for the working and nothing more.
+    row.status = "diagnosed"
+    verdict = await review(image, row.problem.statement, label=row.label, media_type=media_type)
+    if verdict.verdict == "wrong_problem":
+        # The one real exception. If their working isn't for the question we read,
+        # our answer is to a different problem and has no standing to judge theirs.
+        row.verdict, row.status = verdict, "wrong_problem"
+    elif verdict.verdict == "mistake":
+        row.verdict = verdict  # the line to point them at
     return row
