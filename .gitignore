@@ -24,3 +24,7 @@ ideas/
 # Caches
 .pytest_cache/
 .ruff_cache/
+
+# Claude Code worktrees: full copies of this repo, each with its own .venv.
+# Never committed, never uploaded to a build.
+.claude/

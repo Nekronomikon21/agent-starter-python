@@ -1,0 +1,16 @@
+# What `railway up` must not upload.
+#
+# `.dockerignore` shrinks the *build context* once the files are on Railway;
+# this shrinks what leaves your machine in the first place. Without it, a repo
+# with a few Claude Code worktrees uploads several hundred MB of virtualenvs
+# on every deploy.
+.claude/
+.venv
+**/.venv
+.git
+logs/
+ideas/
+__pycache__/
+*.py[oc]
+.pytest_cache/
+.ruff_cache/

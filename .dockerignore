@@ -9,3 +9,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .DS_Store
+
+# Claude Code worktrees — hundreds of MB of repo copies and virtualenvs.
+.claude/
+# .venv is matched at the root above; catch nested ones too.
+**/.venv
