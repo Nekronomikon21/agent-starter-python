@@ -756,3 +756,34 @@ solve and review for up to half a minute. The same frozen chat we fixed yesterda
 nobody had walked yet. Fixed, with the same `except` treatment so a failure there speaks too.
 
 Every defect this project has had now came from someone using it. None came from the docs.
+
+## 2026-09-05 13:52 — One user at a time, which nobody could have noticed alone
+User wants to share the bot with a friend. Sharing is an allowlist change — the bot has always been
+findable by anyone, and `ALLOWED_TELEGRAM_IDS` is the only thing standing between a stranger and the
+OpenRouter bill. But checking what sharing actually requires turned up something worse.
+
+**PTB processes updates one at a time.** Its builder sets `max_concurrent_updates=1`; I read that in
+the installed source rather than trusting memory, because this is exactly the kind of default you
+"remember" wrongly. With one user it is invisible. With two it means the second person's photo waits
+behind the first person's entire ~40s pipeline — and not for a slow reply, for **no reply at all**,
+because even the "Reading your page…" ack is inside the blocked handler.
+
+A single-user bug that only exists once there are two users. No test could have found it, and no
+amount of using it myself would have either.
+
+**Capped at 8, not `True`.** `concurrent_updates(True)` means 256 (`_applicationbuilder.py:1072`).
+That number is written for handlers that answer in milliseconds; ours is a read, a solve per row and
+an Opus review. 256 of those in flight is not a concurrency setting, it's a spending limit with the
+safety off. Eight is more than a household needs and bounds what a burst of photos can cost.
+
+**The loose end I'm leaving, deliberately:** concurrency makes one user's *own* overlapping pages
+reachable. `SESSIONS[uid]` is written at handler start, so sending three photos at once leaves the
+correction button pointing at the last one started. Users are still isolated from each other, which
+is the thing that matters; a kid sending three pages then correcting the middle one gets the wrong
+row. Noted here rather than fixed, because the real fix is the `mathcheck_problems` table that the
+deploy needs anyway.
+
+Also told the user what a real share costs: a second bot token, a webhook server, `railway.toml`
+currently pointing at the web demo, and the in-memory session dict becoming a genuine blocker once
+restarts are routine. Recommended watching a second person use it locally first — every defect this
+thing has had came from someone using it.

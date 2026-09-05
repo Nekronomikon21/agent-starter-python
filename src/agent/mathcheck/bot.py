@@ -60,6 +60,11 @@ class Session:
 
 SESSIONS: dict[int, Session] = {}
 
+# How many photos may be in the pipeline at once. Enough that a handful of users
+# never wait on each other; low enough that a burst of photos cannot fan out into
+# a bill. Deliberately not `concurrent_updates(True)`, which means 256.
+MAX_CONCURRENT_PAGES = 8
+
 
 def _require_token() -> str:
     token = get_settings().telegram_bot_token
@@ -262,6 +267,11 @@ def build_application() -> Application:
         # Must comfortably exceed the long-poll interval.
         .get_updates_connect_timeout(20.0)
         .get_updates_read_timeout(40.0)
+        # PTB processes updates one at a time by default (its builder sets
+        # max_concurrent_updates=1). With more than one user that is not a slow
+        # reply, it is *no* reply: the second person's photo sits behind the
+        # first person's whole ~40s pipeline, ack included.
+        .concurrent_updates(MAX_CONCURRENT_PAGES)
         .post_init(post_init)
         .build()
     )

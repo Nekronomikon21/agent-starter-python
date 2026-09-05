@@ -126,6 +126,15 @@ a typed clarify reply — the bot keeps the last page per user in `bot.SESSIONS`
 survive a restart**: the button then says the page is gone and asks for it again. The
 `mathcheck_problems` table replaces that when the bot is deployed, where restarts are routine.
 
+**Up to `bot.MAX_CONCURRENT_PAGES` (8) pages run at once.** PTB processes updates one at a time by
+default, which is invisible with one user and brutal with two — the second person's photo waits
+behind the first person's whole pipeline and they get no reply at all, ack included. The cap is not
+`concurrent_updates(True)`, which means 256: every page is a read, a solve per row and an Opus
+review, so unbounded fan-out is a bill.
+
+Sessions are keyed per user, so users never collide. One user sending several photos at once is the
+loose end: `SESSIONS[uid]` holds the last page *started*, so a correction lands on that one.
+
 ## Services
 
 `llm` (three models by tier, via OpenRouter) · `db` (Neon, the queue above) · **not** `media`,
