@@ -100,31 +100,43 @@ walking the page. One provider error must never cost the other four rows.
 
 ## Data
 
-`Problem` (`src/agent/mathcheck/models.py`) → table `mathcheck_problems`, one row per problem:
+Table `mathcheck_sessions` (`src/agent/mathcheck/store.py`), **one row per user** — the last page
+they sent:
 
 | Column | Notes |
 |---|---|
-| `id`, `telegram_id`, `created_at` | every query scoped by `telegram_id` |
-| `label` | as written on the page — `1`, `3a`. Not an index; it's what the user taps |
-| `statement` | the problem as read |
-| `student_answer` | as read, or as corrected by the user |
-| `answer_source` | `read` or `user_confirmed` |
-| `correct_answer` | NULL until `solve` fills it. **Not always numeric** — "infinitely many solutions" is an answer |
-| `answer_kind` | `value` / `words` / `drawing` / `missing`. A drawing or an unanswered problem skips the whole pipeline |
-| `statement` empty | not a column — a guard. No question text means nothing to solve *and* nothing to check working against |
-| `read_ok` | bool from `read_page`. Gate 1 for asking the user |
-| `uncertain_field` | `statement` or `answer`, set when `read_ok` is false |
-| `status` | see row states |
+| `telegram_id` | primary key. Telegram's verified id; every query scoped by it |
+| `photo_file_id` | Telegram's id for the photo. **We store no bytes** — a correction re-downloads it |
+| `media_type` | always `image/jpeg` from Telegram |
+| `awaiting` | the label we asked about, NULL when we didn't |
+| `rows` | JSONB: the settled `Row`s, via `store._dump_row` |
+| `updated_at` | |
 
-The table is the shared work queue both workers read and write, which is what makes cancel-and-skip
-safe.
+**Not one row per problem, and not a work queue.** The original design here was a normalised
+`mathcheck_problems` table "both workers read and write" — but that queue never came to exist: the
+race in `pipeline.py` happens in memory inside a single request and never touches a database. What
+actually needs persisting is narrower, so the schema matches the narrower job. The rows are JSONB
+because they are read and written whole, never queried by field; a column per `Row` attribute would
+cost a migration every time the pipeline grows a status and buy nothing.
+
+`Problem`'s own fields (`label`, `statement`, `student_answer`, `answer_kind`, `read_ok`,
+`uncertain_field`) live inside that JSONB, alongside `correct_answer`, `answer_source`, `status` and
+the `Review` verdict. An empty `statement` is not a column but a guard — no question text means
+nothing to solve *and* nothing to check working against.
+
+**Migration filenames are prefixed too**, not just tables: `001_mathcheck_init.sql`. The `_migrations`
+ledger is shared across every project in the database and keyed on the bare filename, so a second
+`001_init.sql` is silently skipped — no error, just a missing table (`docs/learnings.md`).
 
 ## Where state lives
 
 One page's rows live in memory for the length of a request. Across messages — the correction button,
-a typed clarify reply — the bot keeps the last page per user in `bot.SESSIONS`, which **does not
-survive a restart**: the button then says the page is gone and asks for it again. The
-`mathcheck_problems` table replaces that when the bot is deployed, where restarts are routine.
+a typed clarify reply — the last page per user lives in `mathcheck_sessions`, so it **survives a
+restart**, which a deploy performs on every release. A user with no stored page still gets the
+honest "that page is gone" reply.
+
+The photo is the part that could have forced a blob store, and doesn't: we keep Telegram's
+`file_id` and re-download on demand, so `storage` and `media` stay out of this project entirely.
 
 **Up to `bot.MAX_CONCURRENT_PAGES` (8) pages run at once.** PTB processes updates one at a time by
 default, which is invisible with one user and brutal with two — the second person's photo waits

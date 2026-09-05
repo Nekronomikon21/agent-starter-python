@@ -88,6 +88,21 @@ Run it with `uv run python scripts/bakeoff.py --show`.
 - **One page can't decide this.** All three are ≥ 4/5 on five problems. Undecided until there are
   more pages, especially correct ones.
 
+### The shared `_migrations` ledger collides on filenames — 2026-09-05
+
+`mathcheck`'s `001_init.sql` never ran. No error: `apply_migrations` reported nothing applied and
+the first query then failed with `relation "mathcheck_sessions" does not exist`.
+
+`_migrations` is one table for the whole database, keyed on the bare filename, and
+`examples/inspiration_bot/migrations/001_init.sql` had already claimed that name on 2026-08-17. The
+second project to use the obvious filename gets skipped.
+
+- **Prefix migration filenames by project, exactly like table names.** `001_mathcheck_init.sql`.
+  CLAUDE.md said to prefix tables and said nothing about filenames; it does now.
+- **The failure mode is the dangerous kind** — silence at the point of the mistake, an error much
+  later somewhere unrelated. Worth knowing before it happens on a deploy instead of in a test.
+- Checking `SELECT name, applied_at FROM _migrations` is how you see it in five seconds.
+
 ### `read_page` model decided — 3.7-flash, 2026-09-05
 
 Two more runs, prompted by a live user: *"the gap between reading the picture and the next message

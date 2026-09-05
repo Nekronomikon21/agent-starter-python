@@ -787,3 +787,45 @@ Also told the user what a real share costs: a second bot token, a webhook server
 currently pointing at the web demo, and the in-memory session dict becoming a genuine blocker once
 restarts are routine. Recommended watching a second person use it locally first — every defect this
 thing has had came from someone using it.
+
+## 2026-09-05 14:18 — Sessions moved to Postgres; the migration silently didn't run
+Step one of making the bot shareable: the correction button had to stop dying on restart. Locally
+that's an annoyance; on Railway every release restarts the process, so "you misread my answer" would
+have answered *"That page is gone"* as normal behaviour.
+
+**Two design calls, both reversals of what `architecture.md` said.**
+
+*The photo.* The obvious problem with persisting a session is the image — a few hundred KB per user,
+and `apply_correction` needs it to re-run `review`. Storing bytes in Postgres or reaching for R2 both
+felt wrong. **We keep Telegram's `file_id` instead and re-download on demand.** Telegram already
+stores the file indefinitely and hands it back for a short string. No blobs, no R2, and
+`architecture.md`'s "**not** `media`, **not** `storage`" line stays true rather than being quietly
+broken.
+
+*The schema.* The doc specified a normalised `mathcheck_problems` table, "the shared work queue both
+workers read and write". **That queue never came to exist** — `pipeline.py` races in memory inside
+one request and has never touched a database. So the table was designed for a job the code doesn't
+do. What actually needs persisting is "the last page per user", which is one row per user, with the
+rows as JSONB because they are read and written whole and never queried by field. A column per `Row`
+attribute would mean a migration every time the pipeline grows a status, and this week alone it grew
+three. Doc updated with the reasoning rather than the schema being quietly changed under it.
+
+**Then the live test failed in the most instructive way available.** `relation
+"mathcheck_sessions" does not exist` — after `apply_migrations` had run and reported nothing wrong.
+
+`_migrations` is **one ledger for the whole database**, keyed on the bare filename. Inspiration bot's
+`001_init.sql` claimed that name on 2026-08-17, so mine was skipped as already-applied. CLAUDE.md
+tells you to prefix *table* names for the shared database and says nothing about filenames — the
+convention had a hole exactly one project wide. Renamed to `001_mathcheck_init.sql`, and CLAUDE.md
+now says to prefix filenames too.
+
+The failure mode is the dangerous kind: silence where the mistake is, an error much later somewhere
+unrelated. It surfaced in a test here. It would otherwise have surfaced on the deploy, which is the
+one place I'd been telling myself the database work de-risks.
+
+Five tests: three offline pinning exactly what a correction needs back (including that `settled`
+must *not* come back set, or a later review would be dropped the instant it started), two live
+through real Postgres — because "it serialises" and "it round-trips through JSONB" are different
+claims.
+
+Next: the webhook server and Railway. The token is a @BotFather job and not mine to do.

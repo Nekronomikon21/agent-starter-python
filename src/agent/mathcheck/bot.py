@@ -8,7 +8,6 @@ both cost this project an evening once (`journal.md` 2026-08-17).
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 
 from loguru import logger
 from telegram import (
@@ -32,8 +31,10 @@ from telegram.ext import (
 
 from agent.config import get_settings
 from agent.logging_setup import setup_logging
+from agent.mathcheck import store
 from agent.mathcheck.pipeline import PageResult, apply_correction, check_page
 from agent.mathcheck.respond import correction_reply, message_1, message_2, reading_note
+from agent.services import db
 
 HELLO = (
     "Send me a photo of a maths problem with your working, and I'll tell you whether "
@@ -42,23 +43,8 @@ HELLO = (
 FIX_BUTTON = "you misread my answer"
 
 
-@dataclass
-class Session:
-    """The last page a user sent, so the correction button has something to fix.
-
-    In memory, so it does not survive a restart: the correction button goes stale
-    and says so. The `mathcheck_problems` table in `architecture.md` replaces this
-    when the bot is deployed — a restart mid-conversation is rare in local use and
-    common in production.
-    """
-
-    image: bytes
-    media_type: str = "image/jpeg"
-    result: PageResult | None = None
-    awaiting: str | None = None  # label we asked the user about
-
-
-SESSIONS: dict[int, Session] = {}
+# Telegram photos are always JPEG.
+PHOTO_MEDIA_TYPE = "image/jpeg"
 
 # How many photos may be in the pipeline at once. Enough that a handful of users
 # never wait on each other; low enough that a burst of photos cannot fan out into
@@ -130,10 +116,9 @@ async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     typing = asyncio.create_task(_keep_typing(message.chat))
 
     try:
-        photo = await message.photo[-1].get_file()  # [-1] is the largest size
+        largest = message.photo[-1]  # [-1] is the largest size
+        photo = await largest.get_file()
         image = bytes(await photo.download_as_bytearray())
-        session = Session(image=image)
-        SESSIONS[update.effective_user.id] = session
 
         async def announce_read(result: PageResult) -> None:
             await message.reply_text(reading_note(result))
@@ -142,7 +127,18 @@ async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
             await message.reply_text(message_1(result))
 
         result = await check_page(image, on_read=announce_read, on_fast_pass=send_fast_pass)
-        session.result = result
+
+        # One open question and one row to ask about: a plain reply is unambiguous.
+        waiting = [r for r in result.rows if r.status == "awaiting_user"]
+        # Stored before the button is offered, so the button can never outlive the
+        # page it points at. We keep Telegram's file id, never the bytes.
+        await store.save_page(
+            update.effective_user.id,
+            photo_file_id=largest.file_id,
+            media_type=PHOTO_MEDIA_TYPE,
+            result=result,
+            awaiting=waiting[0].label if len(waiting) == 1 else None,
+        )
 
         second = message_2(result)
         await message.reply_text(second or "Nothing else to flag.", reply_markup=_fix_keyboard())
@@ -159,10 +155,6 @@ async def on_photo(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     finally:
         typing.cancel()
 
-    # One open question and one row to ask about: a plain reply is unambiguous.
-    waiting = [r for r in result.rows if r.status == "awaiting_user"]
-    session.awaiting = waiting[0].label if len(waiting) == 1 else None
-
 
 async def on_fix(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     """`you misread my answer` → the labels, then which one."""
@@ -172,18 +164,18 @@ async def on_fix(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await query.answer()
     if not await _allowed(update):
         return  # a stranger has no session anyway, but the check belongs on every path
-    session = SESSIONS.get(update.effective_user.id)
-    if session is None or session.result is None:
+    stored = await store.load_page(update.effective_user.id)
+    if stored is None:
         await query.edit_message_text("That page is gone — send it again and I'll recheck it.")
         return
 
     data = query.data or ""
     if data == "fix":
-        await query.edit_message_reply_markup(reply_markup=_label_keyboard(session.result))
+        await query.edit_message_reply_markup(reply_markup=_label_keyboard(stored.result))
         return
 
     label = data.removeprefix("fix:")
-    session.awaiting = label
+    await store.set_awaiting(update.effective_user.id, label)
     await query.edit_message_reply_markup(reply_markup=None)
     if isinstance(query.message, Message):
         await query.message.reply_text(
@@ -191,17 +183,19 @@ async def on_fix(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
 
-async def on_text(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """A typed answer, when we've asked for one. Otherwise, a nudge."""
     if not await _allowed(update) or update.message is None or update.effective_user is None:
         return
-    session = SESSIONS.get(update.effective_user.id)
-    if session is None or session.result is None or session.awaiting is None:
+    user_id = update.effective_user.id
+    stored = await store.load_page(user_id)
+    if stored is None or stored.awaiting is None:
         await update.message.reply_text(HELLO)
         return
 
-    label, session.awaiting = session.awaiting, None
-    row = next((r for r in session.result.rows if r.label == label), None)
+    label = stored.awaiting
+    await store.set_awaiting(user_id, None)
+    row = next((r for r in stored.result.rows if r.label == label), None)
     if row is None:
         await update.message.reply_text(HELLO)
         return
@@ -211,9 +205,12 @@ async def on_text(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     # exactly the way the photo path used to.
     typing = asyncio.create_task(_keep_typing(update.message.chat))
     try:
-        await apply_correction(
-            row, update.message.text or "", session.image, media_type=session.media_type
-        )
+        # We kept the file id, not the bytes: Telegram still has the photo, so a
+        # correction re-downloads it rather than us storing a blob per user.
+        photo = await context.bot.get_file(stored.photo_file_id)
+        image = bytes(await photo.download_as_bytearray())
+        await apply_correction(row, update.message.text or "", image, media_type=stored.media_type)
+        await store.save_rows(user_id, stored.result)
     except Exception as exc:
         logger.opt(exception=exc).error("applying the correction failed")
         await update.message.reply_text(
@@ -245,11 +242,20 @@ async def on_error(_: object, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def post_init(app: Application) -> None:
+    # Idempotent, so it is safe on every boot — and it is what makes the
+    # correction button survive the restart that a deploy performs.
+    applied = await db.apply_migrations(store.MIGRATIONS)
+    if applied:
+        logger.info("applied migrations: {}", ", ".join(applied))
     if not get_settings().allowed_ids:
         logger.warning(
             "ALLOWED_TELEGRAM_IDS is empty: anyone who finds this bot can spend your credits"
         )
     await app.bot.set_my_commands([BotCommand("start", "How this works")])
+
+
+async def post_shutdown(_: Application) -> None:
+    await db.close_pool()
 
 
 def build_application() -> Application:
@@ -273,6 +279,7 @@ def build_application() -> Application:
         # first person's whole ~40s pipeline, ack included.
         .concurrent_updates(MAX_CONCURRENT_PAGES)
         .post_init(post_init)
+        .post_shutdown(post_shutdown)
         .build()
     )
     app.add_handler(CommandHandler("start", cmd_start))

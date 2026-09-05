@@ -25,6 +25,8 @@ from agent.mathcheck.read_page import read_page
 from agent.mathcheck.review import Review, review
 from agent.mathcheck.solve import solve
 
+AnswerSource = Literal["read", "user_confirmed"]
+
 Status = Literal[
     "pending",
     "cleared",
@@ -81,7 +83,7 @@ class Row:
     problem: Problem
     correct_answer: str | None = None
     # Once the user tells us what they wrote, no model gets to second-guess it.
-    answer_source: Literal["read", "user_confirmed"] = "read"
+    answer_source: AnswerSource = "read"
     status: Status = "pending"
     verdict: Review | None = None
     # Set when the row is cleared, so a review already in flight can be cancelled.

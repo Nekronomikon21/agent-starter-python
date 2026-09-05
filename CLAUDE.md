@@ -174,9 +174,14 @@ uv run fastapi dev src/agent/web.py           # run the web app with reload
   - *Storage:* `R2_PREFIX` scopes your slice of the bucket automatically. Within it, prefix keys by
     project, e.g. `todo_bot/cat.png`. Prefer `storage.store_file(...)` so files get unguessable UUID names.
   - *Database:* prefix table names by project, e.g. `todo_bot_notes`, so projects don't collide.
+    Prefix **migration filenames** the same way (`001_todo_bot_init.sql`): the `_migrations`
+    ledger is shared and keyed on the bare filename, so a second project's `001_init.sql` is
+    **silently skipped** — no error, just a missing table later.
 - **Choosing an LLM:** `build_model("fast"|"balanced"|"smart"|"research"|...)` or a full slug. Edit tiers in `services/llm.py`.
 - **Adding a fal model:** read `https://fal.ai/models/<id>/llms.txt`, then `media.generate("fal-ai/<id>", {...})`. Add a 3-line helper only if you use it a lot.
-- **Adding a DB table:** write a new numbered migration `migrations/00N_*.sql` and apply with `db.apply_migrations(...)`. **Never edit an already-applied migration** — add a higher-numbered one.
+- **Adding a DB table:** write a new numbered migration `migrations/00N_<project>_*.sql` (see the
+  shared-resource note on filenames) and apply with `db.apply_migrations(...)`. **Never edit an
+  already-applied migration** — add a higher-numbered one.
 - **Logging:** call `setup_logging()` once at startup, then `from loguru import logger`.
 - **Frontend:** Jinja2 templates + HTMX (dynamic) + Tailwind (styling), all via CDN. No npm/build.
 - **Gate any web app you deploy.** A public URL is public — set `APP_PASSWORD` so it sits behind a login (httponly cookie), so strangers can't use it or run up your API bill. See `examples/agent_idea_web/` (Pattern C).
